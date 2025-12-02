@@ -375,15 +375,10 @@ fn add_errno(env: &Env, call_result: JsUnknown) -> Result<JsUnknown> {
   Ok(obj.into_unknown())
 }
 
-// Napi makrosu tarafından oluşturulan standart kayıt fonksiyonunu declare ediyoruz.
-// Rust compiler'a "Böyle bir fonksiyon var, bana güven" diyoruz.
 extern "C" {
   fn napi_register_module_v1(env: napi::sys::napi_env, exports: napi::sys::napi_value) -> napi::sys::napi_value;
 }
 
-// Node.js C++ tarafının çağıracağı ÖZEL giriş fonksiyonumuz.
-// #[no_mangle] sayesinde compiler bu ismin başına sonuna garip karakterler eklemez.
-// Böylece C++ tarafından "ffi_rs_extension_entry" adıyla bulabiliriz.
 #[no_mangle]
 pub unsafe extern "C" fn ffi_rs_extension_entry(env: napi::sys::napi_env, exports: napi::sys::napi_value) -> napi::sys::napi_value {
   napi_register_module_v1(env, exports)

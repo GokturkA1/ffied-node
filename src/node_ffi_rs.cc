@@ -1,6 +1,6 @@
 #include "node_api.h"
 
-// Rust tarafındaki özel giriş kapımız
+// Rust tarafındaki özel giriş kapısı
 extern "C" napi_value ffi_rs_extension_entry(napi_env env, napi_value exports);
 
 // Wrapper fonksiyonu
@@ -8,9 +8,6 @@ napi_value Init(napi_env env, napi_value exports) {
     return ffi_rs_extension_entry(env, exports);
 }
 
-// NAPI_MODULE makrosunu kullanmıyoruz çünkü o makro 'napi_register_module_v1'
-// adında bir fonksiyon üretiyor ve bu Rust lib ile çakışıyor.
-// Onun yerine modülü struct olarak tanımlayıp elle kaydediyoruz.
 
 void RegisterFFI() {
     static napi_module _module = {
@@ -27,7 +24,6 @@ void RegisterFFI() {
     napi_module_register(&_module);
 }
 
-// C++ Statik Constructor hilesi:
 // Bu struct program başlar başlamaz (main'den önce) oluşur 
 // ve constructor içinde kayıt işlemini yapar.
 struct AutoRegister {
