@@ -63,6 +63,7 @@
       '<@(node_builtin_shareable_builtins)',
     ],
     'node_sources': [
+      'src/node_ffi_rs.cc',
       'src/api/async_resource.cc',
       'src/api/callback.cc',
       'src/api/embed_helpers.cc',
@@ -865,6 +866,7 @@
         '<(SHARED_INTERMEDIATE_DIR)' # for node_natives.h
       ],
       'dependencies': [
+        'deps/ffi/ffi.gyp:ffi',
         'deps/googletest/googletest.gyp:gtest_prod',
         'deps/histogram/histogram.gyp:histogram',
         'deps/nbytes/nbytes.gyp:nbytes',

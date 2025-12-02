@@ -1,3 +1,4 @@
+import { FfiRsBinding } from './internalBinding/ffi'
 import { AsyncContextFrameBinding } from './internalBinding/async_context_frame';
 import { AsyncWrapBinding } from './internalBinding/async_wrap';
 import { BlobBinding } from './internalBinding/blob';
@@ -39,6 +40,7 @@ interface InternalBindingMap {
   constants: ConstantsBinding;
   debug: DebugBinding;
   encoding_binding: EncodingBinding;
+  ffi: FfiRsBinding;
   fs: FsBinding;
   fs_dir: FsDirBinding;
   http_parser: HttpParserBinding;
