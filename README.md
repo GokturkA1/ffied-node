@@ -25,6 +25,7 @@ that discourage, exhaust, or otherwise negatively affect other participants.
     * [API documentation](#api-documentation)
   * [Verifying binaries](#verifying-binaries)
 * [Building Node.js](#building-nodejs)
+* [Integrated FFI Capabilities](#integrated-ffi-capabilities)
 * [Security](#security)
 * [Contributing to Node.js](#contributing-to-nodejs)
 * [Current project team members](#current-project-team-members)
@@ -100,9 +101,7 @@ files and the releaser PGP signature.
 
 You can get a trusted keyring from nodejs/release-keys, e.g. using `curl`:
 
-```bash
-curl -fsLo "/path/to/nodejs-keyring.kbx" "https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx"
-```
+`curl -fsLo "/path/to/nodejs-keyring.kbx" "https://github.com/nodejs/release-keys/raw/HEAD/gpg/pubring.kbx"`
 
 Alternatively, you can import the releaser keys in your default keyring, see
 [Release keys](#release-keys) for commands to how to do that.
@@ -110,16 +109,20 @@ Alternatively, you can import the releaser keys in your default keyring, see
 Then, you can verify the files you've downloaded locally
 (if you're using your default keyring, pass `--keyring="${GNUPGHOME:-~/.gnupg}/pubring.kbx"`):
 
-```bash
-curl -fsO "https://nodejs.org/dist/${VERSION}/SHASUMS256.txt.asc" \
-&& gpgv --keyring="/path/to/nodejs-keyring.kbx" --output SHASUMS256.txt < SHASUMS256.txt.asc \
-&& shasum --check SHASUMS256.txt --ignore-missing
-```
+`curl -fsO "https://nodejs.org/dist/${VERSION}/SHASUMS256.txt.asc" && gpgv --keyring="/path/to/nodejs-keyring.kbx" --output SHASUMS256.txt < SHASUMS256.txt.asc && shasum --check SHASUMS256.txt --ignore-missing`
 
 ## Building Node.js
 
 See [BUILDING.md](BUILDING.md) for instructions on how to build Node.js from
 source and a list of supported platforms.
+
+## Integrated FFI Capabilities
+
+This distribution of Node.js includes native integration of the [ffi-rs](https://github.com/zhangyuang/node-ffi-rs) library. This allows for high-performance Foreign Function Interface (FFI) operations directly from the runtime without the need for external native addons or compilation at runtime.
+
+The module is statically linked and can be accessed using `require("node:ffi")` or simply `require("ffi")`.
+
+**Note:** This build is based on the bleeding edge `main` branch (currently v26.x).
 
 ## Security
 
@@ -138,15 +141,9 @@ For information on reporting security vulnerabilities in Node.js, see
 For information about the governance of the Node.js project, see
 [GOVERNANCE.md](./GOVERNANCE.md).
 
-<!-- node-core-utils and find-inactive-tsc.mjs depend on the format of the TSC
-     list. If the format changes, those utilities need to be tested and
-     updated. -->
-
 ### TSC (Technical Steering Committee)
 
 #### TSC voting members
-
-<!--lint disable prohibited-strings-->
 
 * [aduh95](https://github.com/aduh95) -
   **Antoine du Hamel** <<duhamelantoine1995@gmail.com>> (he/him)
@@ -268,10 +265,6 @@ For information about the governance of the Node.js project, see
   **Trevor Norris** <<trev.norris@gmail.com>>
 
 </details>
-
-<!-- node-core-utils and find-inactive-collaborators.mjs depend on the format
-     of the collaborator list. If the format changes, those utilities need to be
-     tested and updated. -->
 
 ### Collaborators
 
@@ -459,9 +452,6 @@ For information about the governance of the Node.js project, see
 <details>
 
 <summary>Emeriti</summary>
-
-<!-- find-inactive-collaborators.mjs depends on the format of the emeriti list.
-     If the format changes, those utilities need to be tested and updated. -->
 
 ### Collaborator emeriti
 
@@ -729,145 +719,6 @@ For information about the governance of the Node.js project, see
   **Yorkie Liu** <<yorkiefixer@gmail.com>>
 * [yosuke-furukawa](https://github.com/yosuke-furukawa) -
   **Yosuke Furukawa** <<yosuke.furukawa@gmail.com>>
-
-</details>
-
-<!--lint enable prohibited-strings-->
-
-Collaborators follow the [Collaborator Guide](./doc/contributing/collaborator-guide.md) in
-maintaining the Node.js project.
-
-### Triagers
-
-* [1ilsang](https://github.com/1ilsang) -
-  **Sangchul Lee** <<1ilsang.dev@gmail.com>> (he/him)
-* [atlowChemi](https://github.com/atlowChemi) -
-  **Chemi Atlow** <<chemi@atlow.co.il>> (he/him)
-* [Ayase-252](https://github.com/Ayase-252) -
-  **Qingyu Deng** <<i@ayase-lab.com>>
-* [bjohansebas](https://github.com/bjohansebas) -
-  **Sebastian Beltran** <<bjohansebas@gmail.com>>
-* [bmuenzenmeyer](https://github.com/bmuenzenmeyer) -
-  **Brian Muenzenmeyer** <<brian.muenzenmeyer@gmail.com>> (he/him)
-* [CanadaHonk](https://github.com/CanadaHonk) -
-  **Oliver Medhurst** <<honk@goose.icu>> (they/them)
-* [daeyeon](https://github.com/daeyeon) -
-  **Daeyeon Jeong** <<daeyeon.dev@gmail.com>> (he/him)
-* [gireeshpunathil](https://github.com/gireeshpunathil) -
-  **Gireesh Punathil** <<gpunathi@in.ibm.com>> (he/him)
-* [gurgunday](https://github.com/gurgunday) -
-  **Gürgün Dayıoğlu** <<hey@gurgun.day>>
-* [haramj](https://github.com/haramj) -
-  **Haram Jeong** <<haramj.dev@gmail.com>>
-* [HBSPS](https://github.com/HBSPS) -
-  **Wiyeong Seo** <<hbsps.dev@gmail.com>>
-* [iam-frankqiu](https://github.com/iam-frankqiu) -
-  **Frank Qiu** <<iam.frankqiu@gmail.com>> (he/him)
-* [KevinEady](https://github.com/KevinEady) -
-  **Kevin Eady** <<kevin.c.eady@gmail.com>> (he/him)
-* [marsonya](https://github.com/marsonya) -
-  **Akhil Marsonya** <<akhil.marsonya27@gmail.com>> (he/him)
-* [meixg](https://github.com/meixg) -
-  **Xuguang Mei** <<meixuguang@gmail.com>> (he/him)
-* [milesguicent](https://github.com/milesguicent) -
-  **Miles Guicent** <<guicent@pm.me>> (he/him)
-* [preveen-stack](https://github.com/preveen-stack) -
-  **Preveen Padmanabhan** <<wide4head@gmail.com>> (he/him)
-* [RaisinTen](https://github.com/RaisinTen) -
-  **Darshan Sen** <<raisinten@gmail.com>> (he/him)
-* [VoltrexKeyva](https://github.com/VoltrexKeyva) -
-  **Mohammed Keyvanzadeh** <<mohammadkeyvanzade94@gmail.com>> (he/him)
-
-Triagers follow the [Triage Guide](./doc/contributing/issues.md#triaging-a-bug-report) when
-responding to new issues.
-
-### Release keys
-
-Primary GPG keys for Node.js Releasers (some Releasers sign with subkeys):
-
-* **Antoine du Hamel** <<duhamelantoine1995@gmail.com>>
-  `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`
-* **Juan José Arboleda** <<soyjuanarbol@gmail.com>>
-  `DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7`
-* **Marco Ippolito** <<marcoippolito54@gmail.com>>
-  `CC68F5A3106FF448322E48ED27F5E38D5B0A215F`
-* **Michaël Zasso** <<targos@protonmail.com>>
-  `8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600`
-* **Rafael Gonzaga** <<rafael.nunu@hotmail.com>>
-  `890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4`
-* **Richard Lau** <<richard.lau@ibm.com>>
-  `C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C`
-* **Ruy Adorno** <<ruyadorno@hotmail.com>>
-  `108F52B48DB57BB0CC439B2997B01419BD92F80A`
-* **Ulises Gascón** <<ulisesgascongonzalez@gmail.com>>
-  `A363A499291CBBC940DD62E41F10027AF002F8B0`
-
-You can use the keyring the project maintains at
-<https://github.com/nodejs/release-keys/raw/refs/heads/main/gpg-only-active-keys/pubring.kbx>.
-Alternatively, you can import them from a public key server. Have in mind that
-the project cannot guarantee the availability of the server nor the keys on
-that server.
-
-```bash
-gpg --keyserver hkps://keys.openpgp.org --recv-keys 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 # Antoine du Hamel
-gpg --keyserver hkps://keys.openpgp.org --recv-keys DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7 # Juan José Arboleda
-gpg --keyserver hkps://keys.openpgp.org --recv-keys CC68F5A3106FF448322E48ED27F5E38D5B0A215F # Marco Ippolito
-gpg --keyserver hkps://keys.openpgp.org --recv-keys 8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600 # Michaël Zasso
-gpg --keyserver hkps://keys.openpgp.org --recv-keys 890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4 # Rafael Gonzaga
-gpg --keyserver hkps://keys.openpgp.org --recv-keys C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C # Richard Lau
-gpg --keyserver hkps://keys.openpgp.org --recv-keys 108F52B48DB57BB0CC439B2997B01419BD92F80A # Ruy Adorno
-gpg --keyserver hkps://keys.openpgp.org --recv-keys A363A499291CBBC940DD62E41F10027AF002F8B0 # Ulises Gascón
-```
-
-See [Verifying binaries](#verifying-binaries) for how to use these keys to
-verify a downloaded file.
-
-<details>
-
-<summary>Other keys used to sign some previous releases</summary>
-
-* **Antoine du Hamel** <<duhamelantoine1995@gmail.com>>
-  `C0D6248439F1D5604AAFFB4021D900FFDB233756`
-* **Beth Griggs** <<bethanyngriggs@gmail.com>>
-  `4ED778F539E3634C779C87C6D7062848A1AB005C`
-* **Bryan English** <<bryan@bryanenglish.com>>
-  `141F07595B7B3FFE74309A937405533BE57C7D57`
-* **Chris Dickinson** <<christopher.s.dickinson@gmail.com>>
-  `9554F04D7259F04124DE6B476D5A82AC7E37093B`
-* **Colin Ihrig** <<cjihrig@gmail.com>>
-  `94AE36675C464D64BAFA68DD7434390BDBE9B9C5`
-* **Danielle Adams** <<adamzdanielle@gmail.com>>
-  `1C050899334244A8AF75E53792EF661D867B9DFA`
-  `74F12602B6F1C4E913FAA37AD3A89613643B6201`
-* **Evan Lucas** <<evanlucas@me.com>>
-  `B9AE9905FFD7803F25714661B63B535A4C206CA9`
-* **Gibson Fahnestock** <<gibfahn@gmail.com>>
-  `77984A986EBC2AA786BC0F66B01FBB92821C587A`
-* **Isaac Z. Schlueter** <<i@izs.me>>
-  `93C7E9E91B49E432C2F75674B0A78B0A6C481CF6`
-* **Italo A. Casas** <<me@italoacasas.com>>
-  `56730D5401028683275BD23C23EFEFE93C4CFFFE`
-* **James M Snell** <<jasnell@keybase.io>>
-  `71DCFD284A79C3B38668286BC97EC7A07EDE3FC1`
-* **Jeremiah Senkpiel** <<fishrock@keybase.io>>
-  `FD3A5288F042B6850C66B31F09FE44734EB7990E`
-* **Juan José Arboleda** <<soyjuanarbol@gmail.com>>
-  `61FC681DFB92A079F1685E77973F295594EC4689`
-* **Julien Gilli** <<jgilli@fastmail.fm>>
-  `114F43EE0176B71C7BC219DD50A3051F888C628D`
-* **Myles Borins** <<myles.borins@gmail.com>>
-  `C4F0DFFF4E8C1A8236409D08E73BC641CC11F4C8`
-* **Rod Vagg** <<rod@vagg.org>>
-  `DD8F2338BAE7501E3DD5AC78C273792F7D83545D`
-* **Ruben Bridgewater** <<ruben@bridgewater.de>>
-  `A48C2BEE680E841632CD4E44F07496B3EB3C1762`
-* **Shelley Vohr** <<shelley.vohr@gmail.com>>
-  `B9E2F5981AA6E0CD28160D9FF13993A75599653C`
-* **Timothy J Fontaine** <<tjfontaine@gmail.com>>
-  `7937DFD2AB06298B2293C3187D33FF9D0246406D`
-
-The project maintains a keyring able to verify all past releases of Node.js at
-<https://github.com/nodejs/release-keys/raw/refs/heads/main/gpg/pubring.kbx>.
 
 </details>
 
