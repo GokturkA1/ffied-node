@@ -621,6 +621,22 @@
                 },
               },
             }],
+            ['OS=="linux"', {
+              'ldflags': [
+                # ffi.gyp'de tanımlanan kütüphaneyi burada tekrar tanımlıyoruz.
+                # Node'un ana kütüphanesinin bağlayıcı ayarlarını manipüle ediyoruz.
+                '-Wl,--whole-archive',
+                '<(PRODUCT_DIR)/libffi_rs.a',
+                '-Wl,--no-whole-archive',
+                # Rust'ın kendi runtime bağımlılıklarını da burada çözmeyi deneyin:
+                '-ldl',       
+                '-lpthread',  
+                '-lm',        
+                '-lrt',
+                '-lc',
+                '-lutil'
+              ],
+            }],
           ],
         }],
         [ 'node_intermediate_lib_type=="static_library" and node_shared=="false"', {

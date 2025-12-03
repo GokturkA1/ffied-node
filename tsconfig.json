@@ -44,6 +44,7 @@
       "domain": ["./lib/domain.js"],
       "events": ["./lib/events.js"],
       "fs": ["./lib/fs.js"],
+      "ffi": ["./lib/ffi.js"],
       "fs/promises": ["./lib/fs/promises.js"],
       "http": ["./lib/http.js"],
       "http2": ["./lib/http2.js"],

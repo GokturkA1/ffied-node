@@ -1,13 +1,14 @@
 {
   'targets': [
+    # ----------------------------------------------------------------------
+    # HEDEF 1: RUST STATİK KÜTÜPHANESİNİ DERLEYEN VE HAZIRLAYAN HEDEF ('ffi')
+    # ----------------------------------------------------------------------
     {
       'target_name': 'ffi',
       'type': 'none',
       
       'conditions': [
-        # ======================================================================
-        # 1. WINDOWS (MSVC)
-        # ======================================================================
+        # === WINDOWS MSVC ===
         ['OS=="win"', {
           'actions': [
             {
@@ -36,21 +37,17 @@
           },
         }],
 
-        # ======================================================================
-        # 2. UNIX (LINUX - CODESPACE)
-        # ======================================================================
+        # === UNIX / LINUX (Düzeltilen Kısım) ===
         ['OS!="win"', {
           'actions': [
             {
               'action_name': 'build_rust_unix',
               'inputs': ['Cargo.toml', 'src/lib.rs'],
-              # GYP'ye çıktının libffi_rs.a olacağını söylüyoruz
+              # Çıktı libffi_rs.a
               'outputs': ['<(PRODUCT_DIR)/libffi_rs.a'],
               'action': [
                 'sh', '-c',
-                # 1. Derle (Cargo linux'ta libffi_rs.a üretir)
                 'cargo build --release && ' +
-                # 2. Kopyalarken adını libffi_rs.a yap (Sistem libffi_rs.a ile karışmasın)
                 'cp target/release/libffi_rs.a <(PRODUCT_DIR)/libffi_rs.a'
               ],
               'message': 'Building Rust FFI-RS (Unix/Linux)...',
@@ -58,16 +55,21 @@
           ],
           'direct_dependent_settings': {
             'libraries': [
-              # Linker'a tam yol veriyoruz
+              # STATİK KÜTÜPHANEYİ ZORLA DAHİL ETME (CRITICAL PATCH)
+              '-Wl,--whole-archive',
               '<(PRODUCT_DIR)/libffi_rs.a',
+              '-Wl,--no-whole-archive',
             ],
             'conditions': [
               ['OS=="linux"', {
                 'libraries': [
-                  '-ldl',       # Dynamic Linker
-                  '-lpthread',  # Threading
-                  '-lm',        # Math
-                  '-lrt'        # Realtime extensions
+                  # Rust Runtime ve libc bağımlılıkları
+                  '-ldl',       
+                  '-lpthread',  
+                  '-lm',        
+                  '-lrt',       
+                  '-lc',       
+                  '-lutil'
                 ]
               }],
               ['OS=="mac"', {
@@ -82,6 +84,25 @@
           }
         }]
       ]
-    }
+    },
+
+    # ----------------------------------------------------------------------
+    # HEDEF 2: NODE ADDON HEDEFİ ('ffi_rs')
+    # ----------------------------------------------------------------------
+    # Varsayılan olarak Node Addon hedefi (`binding.gyp`'de yer alan) 
+    # bu 'ffi' hedefine bağımlı olmalıdır (dependencies: ['ffi']).
+    # Eğer bu dosyayı (ffi.gyp) doğrudan Node'un ana derlemesine dahil ediyorsanız, 
+    # bu hedefi burada tanımlamanıza gerek yoktur, ancak standart bir Node.js Addon yapısında 
+    # bu hedef ana binding.gyp tarafından kullanılacaktır. 
+    # Eğer bu ffi.gyp tek başına çalışıyorsa ve bir .node dosyası üretmek istiyorsa 
+    # (ancak sorunuzdaki kodlar bunu yapmıyor, sadece Rust'ı hazırlıyor), 
+    # aşağıdakine benzer bir hedef gereklidir:
+    
+    # {
+    #   'target_name': 'ffi_rs',
+    #   'type': 'shared_library', 
+    #   'sources': [ 'node_ffi_rs.cc' ],
+    #   'dependencies': [ 'ffi' ],
+    # }
   ]
 }
