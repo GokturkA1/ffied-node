@@ -1,15 +1,25 @@
-name: Install Clang
-description: Installs a specific Clang version. Useful if the GitHub runner does not have it by default.
+name: Install Toolchains (Clang and Rust)
+description: Installs both the specified Clang version and the stable Rust toolchain for Node.js/FFI compilation.
 inputs:
   clang-version:
-    description: The Clang major version to install
+    description: The Clang major version to install (e.g., '14')
     required: true
 
 runs:
   using: composite
   steps:
+    # 1. Mevcut Clang Kurulum Adımı (Değişmedi)
     - name: Install Clang
       shell: bash
       run: |
         sudo apt-get update
         sudo apt-get install -y clang-${{ inputs.clang-version }}
+        
+    - name: Manual Rust Toolchain Installation
+      shell: bash
+      # Bu komutlar Windows ve Linux'ta rustup kurar.
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        rustup override set stable
+        rustup update stable
