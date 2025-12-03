@@ -1,10 +1,10 @@
 [package]
 edition = "2021"
-name = "ffi"
+name = "ffi_rs"
 version = "0.0.0"
 
 [lib]
-name = "ffi"
+name = "ffi_rs"
 crate-type = ["staticlib"]
 
 [dependencies]

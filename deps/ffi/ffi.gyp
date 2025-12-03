@@ -13,18 +13,18 @@
             {
               'action_name': 'build_rust_win',
               'inputs': ['Cargo.toml', 'src/lib.rs'],
-              'outputs': ['<(PRODUCT_DIR)/ffi.lib'],
+              'outputs': ['<(PRODUCT_DIR)/ffi_rs.lib'],
               'action': [
                 'cmd', '/c',
                 'cargo build --release --target x86_64-pc-windows-msvc && ' +
-                'copy /Y target\\x86_64-pc-windows-msvc\\release\\ffi.lib <(PRODUCT_DIR)\\ffi.lib'
+                'copy /Y target\\x86_64-pc-windows-msvc\\release\\ffi_rs.lib <(PRODUCT_DIR)\\ffi_rs.lib'
               ],
               'message': 'Building Rust FFI-RS (Windows MSVC)...',
             }
           ],
           'direct_dependent_settings': {
             'libraries': [
-              'ffi.lib',
+              'ffi_rs.lib',
               'ntdll.lib',
               'userenv.lib',
               'bcrypt.lib',
@@ -44,14 +44,14 @@
             {
               'action_name': 'build_rust_unix',
               'inputs': ['Cargo.toml', 'src/lib.rs'],
-              # GYP'ye çıktının ffi.a olacağını söylüyoruz
-              'outputs': ['<(PRODUCT_DIR)/ffi.a'],
+              # GYP'ye çıktının libffi_rs.a olacağını söylüyoruz
+              'outputs': ['<(PRODUCT_DIR)/libffi_rs.a'],
               'action': [
                 'sh', '-c',
-                # 1. Derle (Cargo linux'ta libffi.a üretir)
+                # 1. Derle (Cargo linux'ta libffi_rs.a üretir)
                 'cargo build --release && ' +
-                # 2. Kopyalarken adını ffi.a yap (Sistem libffi.a ile karışmasın)
-                'cp target/release/libffi.a <(PRODUCT_DIR)/ffi.a'
+                # 2. Kopyalarken adını libffi_rs.a yap (Sistem libffi_rs.a ile karışmasın)
+                'cp target/release/libffi_rs.a <(PRODUCT_DIR)/libffi_rs.a'
               ],
               'message': 'Building Rust FFI-RS (Unix/Linux)...',
             }
@@ -59,7 +59,7 @@
           'direct_dependent_settings': {
             'libraries': [
               # Linker'a tam yol veriyoruz
-              '<(PRODUCT_DIR)/ffi.a',
+              '<(PRODUCT_DIR)/libffi_rs.a',
             ],
             'conditions': [
               ['OS=="linux"', {

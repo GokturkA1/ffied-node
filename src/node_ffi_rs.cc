@@ -15,7 +15,7 @@ void RegisterFFI() {
         0,              // nm_flags
         __FILE__,       // nm_filename
         Init,           // nm_register_func (Bizim wrapper)
-        "ffi",       // nm_modname (JS tarafında _linkedBinding('ffi_rs') ile çağırılacak)
+        "ffi_rs",       // nm_modname (JS tarafında _linkedBinding('ffi_rs') ile çağırılacak)
         0,              // nm_priv
         {0},            // reserved
     };
