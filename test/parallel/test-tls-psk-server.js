@@ -5,6 +5,13 @@ if (!common.hasCrypto) {
   common.skip('missing crypto');
 }
 
+const { isBoringSSL } = require('../common/crypto');
+
+if (isBoringSSL) {
+  require('../common/boringssl').testPskTls13Unsupported();
+  return;
+}
+
 const { opensslCli } = require('../common/crypto');
 
 if (!opensslCli) {

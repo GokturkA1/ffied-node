@@ -317,7 +317,7 @@ const assert2 = new Assert({ skipPrototype: true });
 assert2.deepStrictEqual(foo, bar); // OK
 ```
 
-When destructured, methods lose access to the instance's `this` context and revert to default assertion behavior
+When destructured, methods lose access to the instance's `this` context and revert to the default assertion behavior
 (diff: 'simple', non-strict mode).
 To maintain custom options when using destructured methods, avoid
 destructuring and call methods directly on the instance.
@@ -327,7 +327,7 @@ destructuring and call methods directly on the instance.
 <!-- YAML
 added: v0.5.9
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
 -->
@@ -342,7 +342,7 @@ An alias of [`assert.ok()`][].
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v25.0.0
@@ -423,10 +423,11 @@ are also recursively evaluated by the following rules.
 ### Comparison details
 
 * Primitive values are compared with the [`==` operator][],
-  with the exception of {NaN}. It is treated as being identical in case
-  both sides are {NaN}.
+  except for {NaN}, which is treated as identical when both
+  sides are {NaN}.
 * [Type tags][Object.prototype.toString()] of objects should be the same.
 * Only [enumerable "own" properties][] are considered.
+* Object constructors are compared when available.
 * {Error} names, messages, causes, and errors are always compared,
   even if these are not enumerable properties.
 * [Object wrappers][] are compared both as objects and unwrapped values.
@@ -611,6 +612,7 @@ are recursively evaluated also by the following rules.
 * [`[[Prototype]]`][prototype-spec] of objects are compared using
   the [`===` operator][].
 * Only [enumerable "own" properties][] are considered.
+* Object constructors are compared when available.
 * {Error} names, messages, causes, and errors are always compared,
   even if these are not enumerable properties.
   `errors` is also compared.
@@ -860,7 +862,7 @@ added:
   - v13.6.0
   - v12.16.0
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v16.0.0
@@ -936,7 +938,7 @@ error messages as expressive as possible.
 If specified, `error` can be a [`Class`][], {RegExp} or a validation
 function. See [`assert.throws()`][] for more details.
 
-Besides the async nature to await the completion behaves identically to
+Aside from asynchronously awaiting completion, it behaves identically to
 [`assert.doesNotThrow()`][].
 
 ```mjs
@@ -1103,7 +1105,7 @@ assert.doesNotThrow(
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version:
@@ -1291,7 +1293,7 @@ added:
   - v13.6.0
   - v12.16.0
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v16.0.0
@@ -1343,7 +1345,7 @@ instance of {Error} then it will be thrown instead of the
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version:
@@ -1470,7 +1472,7 @@ instead of the `AssertionError`.
 <!-- YAML
 added: v1.2.0
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v9.0.0
@@ -1533,7 +1535,7 @@ instead of the [`AssertionError`][].
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version:
@@ -1600,7 +1602,7 @@ parameter is an instance of {Error} then it will be thrown instead of the
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v10.0.0
@@ -1656,7 +1658,7 @@ instead of the `AssertionError`.
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v10.0.0
@@ -1681,6 +1683,8 @@ If no arguments are passed in at all `message` will be set to the string:
 
 Be aware that in the `repl` the error message will be different to the one
 thrown in a file! See below for further details.
+
+<!-- eslint-disable no-restricted-syntax -->
 
 ```mjs
 import assert from 'node:assert/strict';
@@ -1716,6 +1720,8 @@ assert.ok(0);
 //
 //   assert.ok(0)
 ```
+
+<!-- eslint-disable no-restricted-syntax -->
 
 ```cjs
 const assert = require('node:assert/strict');
@@ -1756,20 +1762,20 @@ assert.ok(0);
 import assert from 'node:assert/strict';
 
 // Using `assert()` works the same:
-assert(0);
+assert(2 + 2 > 5);
 // AssertionError: The expression evaluated to a falsy value:
 //
-//   assert(0)
+//   assert(2 + 2 > 5)
 ```
 
 ```cjs
 const assert = require('node:assert');
 
 // Using `assert()` works the same:
-assert(0);
+assert(2 + 2 > 5);
 // AssertionError: The expression evaluated to a falsy value:
 //
-//   assert(0)
+//   assert(2 + 2 > 5)
 ```
 
 ## `assert.rejects(asyncFn[, error][, message])`
@@ -1899,7 +1905,7 @@ argument gets considered.
 <!-- YAML
 added: v0.1.21
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/58849
     description: Message may now be a `printf`-like format string or function.
   - version: v10.0.0
@@ -2522,7 +2528,7 @@ assert.partialDeepStrictEqual(
 // AssertionError
 ```
 
-[Object wrappers]: https://developer.mozilla.org/en-US/docs/Glossary/Primitive#Primitive_wrapper_objects_in_JavaScript
+[Object wrappers]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Data_structures#primitive_values
 [Object.prototype.toString()]: https://tc39.github.io/ecma262/#sec-object.prototype.tostring
 [`!=` operator]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Inequality
 [`===` operator]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality
@@ -2544,5 +2550,5 @@ assert.partialDeepStrictEqual(
 [`assert.throws()`]: #assertthrowsfn-error-message
 [`getColorDepth()`]: tty.md#writestreamgetcolordepthenv
 [`util.format()`]: util.md#utilformatformat-args
-[enumerable "own" properties]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Enumerability_and_ownership_of_properties
+[enumerable "own" properties]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Enumerability_and_ownership_of_properties
 [prototype-spec]: https://tc39.github.io/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots

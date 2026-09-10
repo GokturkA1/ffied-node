@@ -1,5 +1,6 @@
 #include "module_wrap.h"
 
+#include "debug_utils-inl.h"
 #include "env.h"
 #include "memory_tracker-inl.h"
 #include "node_contextify.h"
@@ -7,6 +8,7 @@
 #include "node_external_reference.h"
 #include "node_internals.h"
 #include "node_process-inl.h"
+#include "node_sea.h"
 #include "node_url.h"
 #include "node_watchdog.h"
 #include "util-inl.h"
@@ -96,8 +98,7 @@ std::string ModuleCacheKey::ToString() const {
 }
 
 template <int elements_per_attribute>
-ModuleCacheKey ModuleCacheKey::From(Local<Context> context,
-                                    Local<String> specifier,
+ModuleCacheKey ModuleCacheKey::From(Local<String> specifier,
                                     Local<FixedArray> import_attributes) {
   CHECK_EQ(import_attributes->Length() % elements_per_attribute, 0);
   Isolate* isolate = Isolate::GetCurrent();
@@ -110,12 +111,11 @@ ModuleCacheKey ModuleCacheKey::From(Local<Context> context,
 
   for (int i = 0; i < import_attributes->Length();
        i += elements_per_attribute) {
-    DCHECK(DataIsString(import_attributes->Get(context, i)));
-    DCHECK(DataIsString(import_attributes->Get(context, i + 1)));
+    DCHECK(DataIsString(import_attributes->Get(i)));
+    DCHECK(DataIsString(import_attributes->Get(i + 1)));
 
-    Local<String> v8_key = import_attributes->Get(context, i).As<String>();
-    Local<String> v8_value =
-        import_attributes->Get(context, i + 1).As<String>();
+    Local<String> v8_key = import_attributes->Get(i).As<String>();
+    Local<String> v8_value = import_attributes->Get(i + 1).As<String>();
     Utf8Value key_utf8(isolate, v8_key);
     Utf8Value value_utf8(isolate, v8_value);
 
@@ -132,10 +132,8 @@ ModuleCacheKey ModuleCacheKey::From(Local<Context> context,
   return ModuleCacheKey{utf8_specifier.ToString(), attributes, hash};
 }
 
-ModuleCacheKey ModuleCacheKey::From(Local<Context> context,
-                                    Local<ModuleRequest> v8_request) {
-  return From(
-      context, v8_request->GetSpecifier(), v8_request->GetImportAttributes());
+ModuleCacheKey ModuleCacheKey::From(Local<ModuleRequest> v8_request) {
+  return From(v8_request->GetSpecifier(), v8_request->GetImportAttributes());
 }
 
 ModuleWrap::ModuleWrap(Realm* realm,
@@ -365,6 +363,20 @@ void ModuleWrap::New(const FunctionCallbackInfo<Value>& args) {
             new ScriptCompiler::CachedData(data + cached_data_buf->ByteOffset(),
                                            cached_data_buf->ByteLength());
       }
+#ifndef DISABLE_SINGLE_EXECUTABLE_APPLICATION
+      // For embedder ESM in a SEA, use the bundled code cache if available.
+      if (id_symbol == realm->isolate_data()->embedder_module_hdo() &&
+          sea::IsSingleExecutable()) {
+        sea::SeaResource sea = sea::FindSingleExecutableResource();
+        if (sea.use_code_cache()) {
+          std::string_view data = sea.code_cache.value();
+          user_cached_data = new ScriptCompiler::CachedData(
+              reinterpret_cast<const uint8_t*>(data.data()),
+              static_cast<int>(data.size()),
+              ScriptCompiler::CachedData::BufferNotOwned);
+        }
+      }
+#endif  // !DISABLE_SINGLE_EXECUTABLE_APPLICATION
       Local<String> source_text = args[2].As<String>();
 
       bool cache_rejected = false;
@@ -389,12 +401,26 @@ void ModuleWrap::New(const FunctionCallbackInfo<Value>& args) {
         return;
       }
 
-      if (user_cached_data.has_value() && user_cached_data.value() != nullptr &&
-          cache_rejected) {
-        THROW_ERR_VM_MODULE_CACHED_DATA_REJECTED(
-            realm, "cachedData buffer was rejected");
-        try_catch.ReThrow();
-        return;
+      if (user_cached_data.has_value() && user_cached_data.value() != nullptr) {
+#ifndef DISABLE_SINGLE_EXECUTABLE_APPLICATION
+        if (id_symbol == realm->isolate_data()->embedder_module_hdo() &&
+            sea::IsSingleExecutable()) {
+          if (cache_rejected) {
+            per_process::Debug(DebugCategory::SEA,
+                               "SEA module code cache rejected\n");
+            ProcessEmitWarningSync(realm->env(), "Code cache data rejected.");
+          } else {
+            per_process::Debug(DebugCategory::SEA,
+                               "SEA module code cache accepted\n");
+          }
+        } else  // NOLINT(readability/braces)
+#endif          // !DISABLE_SINGLE_EXECUTABLE_APPLICATION
+          if (cache_rejected) {
+            THROW_ERR_VM_MODULE_CACHED_DATA_REJECTED(
+                realm, "cachedData buffer was rejected");
+            try_catch.ReThrow();
+            return;
+          }
       }
 
       if (that->Set(context,
@@ -529,6 +555,8 @@ ModulePhase to_phase_constant(ModuleImportPhase phase) {
   switch (phase) {
     case ModuleImportPhase::kEvaluation:
       return kEvaluationPhase;
+    case ModuleImportPhase::kDefer:
+      return kDeferPhase;
     case ModuleImportPhase::kSource:
       return kSourcePhase;
     default:
@@ -547,8 +575,8 @@ static Local<Object> createImportAttributesContainer(
   LocalVector<Value> values(isolate, num_attributes);
 
   for (int i = 0; i < raw_attributes->Length(); i += elements_per_attribute) {
-    Local<Data> key = raw_attributes->Get(realm->context(), i);
-    Local<Data> value = raw_attributes->Get(realm->context(), i + 1);
+    Local<Data> key = raw_attributes->Get(i);
+    Local<Data> value = raw_attributes->Get(i + 1);
     DCHECK(DataIsString(key));
     DCHECK(DataIsString(value));
 
@@ -571,9 +599,9 @@ static Local<Array> createModuleRequestsContainer(
   LocalVector<Value> requests(isolate, raw_requests->Length());
 
   for (int i = 0; i < raw_requests->Length(); i++) {
-    DCHECK(raw_requests->Get(context, i)->IsModuleRequest());
+    DCHECK(raw_requests->Get(i)->IsModuleRequest());
     Local<ModuleRequest> module_request =
-        raw_requests->Get(realm->context(), i).As<ModuleRequest>();
+        raw_requests->Get(i).As<ModuleRequest>();
 
     Local<String> specifier = module_request->GetSpecifier();
 
@@ -661,8 +689,8 @@ void ModuleWrap::Link(const FunctionCallbackInfo<Value>& args) {
     // TODO(joyeecheung): merge this with the serializeKey() in module_map.js.
     // This currently doesn't sort the import attributes.
     Local<Value> module_value = modules_vector[i].Get(isolate);
-    ModuleCacheKey module_cache_key = ModuleCacheKey::From(
-        context, requests->Get(context, i).As<ModuleRequest>());
+    ModuleCacheKey module_cache_key =
+        ModuleCacheKey::From(requests->Get(i).As<ModuleRequest>());
     auto it = module_request_map.find(module_cache_key);
     if (it == module_request_map.end()) {
       // This is the first request with this identity, record it - any mismatch
@@ -912,23 +940,9 @@ void ModuleWrap::EvaluateSync(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  if (obj->HasAsyncGraph()) {
-    CHECK(env->options()->print_required_tla);
-    auto stalled_messages =
-        std::get<1>(module->GetStalledTopLevelAwaitMessages(isolate));
-    if (stalled_messages.size() != 0) {
-      for (auto& message : stalled_messages) {
-        std::string reason = "Error: unexpected top-level await at ";
-        std::string info =
-            FormatErrorMessage(isolate, context, "", message, true);
-        reason += info;
-        FPrintF(stderr, "%s\n", reason);
-      }
-    }
-    THROW_ERR_REQUIRE_ASYNC_MODULE(env, args[0], args[1]);
-    return;
-  }
-
+  // Graphs with top-level await are rejected by the caller before evaluation
+  // starts, so the promise must have been settled synchronously.
+  CHECK(!obj->HasAsyncGraph());
   CHECK_EQ(promise->State(), Promise::PromiseState::kFulfilled);
 
   args.GetReturnValue().Set(module->GetModuleNamespace());
@@ -1006,7 +1020,7 @@ void ModuleWrap::HasAsyncGraph(Local<Name> property,
   Isolate* isolate = args.GetIsolate();
   Environment* env = Environment::GetCurrent(isolate);
   ModuleWrap* obj;
-  ASSIGN_OR_RETURN_UNWRAP(&obj, args.This());
+  ASSIGN_OR_RETURN_UNWRAP(&obj, args.HolderV2());
 
   Local<Module> module = obj->module_.Get(isolate);
   if (module->GetStatus() < Module::kInstantiated) {
@@ -1055,12 +1069,11 @@ MaybeLocal<Object> ModuleWrap::ResolveSourceCallback(
   return module_source_object.As<Object>();
 }
 
-static std::string GetSpecifierFromModuleRequest(Local<Context> context,
-                                                 Local<Module> referrer,
+static std::string GetSpecifierFromModuleRequest(Local<Module> referrer,
                                                  size_t module_request_index) {
   Local<ModuleRequest> raw_request =
       referrer->GetModuleRequests()
-          ->Get(context, static_cast<int>(module_request_index))
+          ->Get(static_cast<int>(module_request_index))
           .As<ModuleRequest>();
   Local<String> specifier = raw_request->GetSpecifier();
   Utf8Value specifier_utf8(Isolate::GetCurrent(), specifier);
@@ -1083,14 +1096,14 @@ Maybe<ModuleWrap*> ModuleWrap::ResolveModule(Local<Context> context,
   ModuleWrap* dependent = ModuleWrap::GetFromModule(env, referrer);
   if (dependent == nullptr) {
     std::string specifier =
-        GetSpecifierFromModuleRequest(context, referrer, module_request_index);
+        GetSpecifierFromModuleRequest(referrer, module_request_index);
     THROW_ERR_VM_MODULE_LINK_FAILURE(
         env, "request for '%s' is from invalid module", specifier);
     return Nothing<ModuleWrap*>();
   }
   if (!dependent->IsLinked()) {
     std::string specifier =
-        GetSpecifierFromModuleRequest(context, referrer, module_request_index);
+        GetSpecifierFromModuleRequest(referrer, module_request_index);
     THROW_ERR_VM_MODULE_LINK_FAILURE(env,
                                      "request for '%s' can not be resolved on "
                                      "module '%s' that is not linked",
@@ -1140,7 +1153,7 @@ static MaybeLocal<Promise> ImportModuleDynamicallyWithPhase(
   // If the host-defined options are empty, get the referrer id symbol
   // from the realm global object.
   if (options->Length() == HostDefinedOptions::kLength) {
-    id = options->Get(context, HostDefinedOptions::kID).As<Symbol>();
+    id = options->Get(HostDefinedOptions::kID).As<Symbol>();
   } else if (!context->Global()
                   ->GetPrivate(context, env->host_defined_option_symbol())
                   .ToLocal(&id)) {
@@ -1223,7 +1236,7 @@ void ModuleWrap::SetImportMetaResolveInitializer(
 static void ImportMetaResolveLazyGetter(
     Local<v8::Name> name, const PropertyCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
-  Local<Value> receiver_val = info.This();
+  Local<Value> receiver_val = info.HolderV2();
   if (!receiver_val->IsObject()) {
     THROW_ERR_INVALID_INVOCATION(isolate);
     return;
@@ -1264,7 +1277,7 @@ static void PathHelpersLazyGetter(Local<v8::Name> name,
   // When this getter is invoked in a vm context, the `Realm::GetCurrent(info)`
   // returns a nullptr and retrieve the creation context via `this` object and
   // get the creation Realm.
-  Local<Value> receiver_val = info.This();
+  Local<Value> receiver_val = info.HolderV2();
   if (!receiver_val->IsObject()) {
     THROW_ERR_INVALID_INVOCATION(isolate);
     return;
@@ -1397,7 +1410,8 @@ void ModuleWrap::HostInitializeImportMetaObjectCallback(
 
   // Use the default initializer for source text modules without custom
   // callbacks.
-  if (id == env->source_text_module_default_hdo()) {
+  if (id == env->source_text_module_default_hdo() ||
+      id == env->embedder_module_hdo()) {
     USE(DefaultImportMetaObjectInitializer(realm, wrap, meta));
     return;
   }
@@ -1656,6 +1670,7 @@ void ModuleWrap::CreatePerContextProperties(Local<Object> target,
   V(Module::Status, kErrored);
 
   V(ModulePhase, kEvaluationPhase);
+  V(ModulePhase, kDeferPhase);
   V(ModulePhase, kSourcePhase);
 #undef V
 }

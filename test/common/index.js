@@ -35,6 +35,8 @@ const tmpdir = require('./tmpdir');
 const bits = ['arm64', 'loong64', 'mips', 'mipsel', 'ppc64', 'riscv64', 's390x', 'x64']
   .includes(process.arch) ? 64 : 32;
 const hasIntl = !!process.config.variables.v8_enable_i18n_support;
+const hasTemporal = !!process.config.variables.v8_enable_temporal_support;
+const hasV8Sandbox = !!process.config.variables.v8_enable_sandbox;
 
 // small-icu doesn't support non-English locales
 const hasFullICU = (() => {
@@ -62,20 +64,24 @@ if (isMainThread)
 
 const noop = () => {};
 
+// Whether the executable is linked against the shared library i.e. libnode.
+const usesSharedLibrary = process.config.variables.node_shared;
 const hasCrypto = Boolean(process.versions.openssl) &&
                   !process.env.NODE_SKIP_CRYPTO;
 
 const hasInspector = Boolean(process.features.inspector);
 const hasSQLite = Boolean(process.versions.sqlite);
+const hasFFI = Boolean(process.config.variables.node_use_ffi);
+const hasPerfetto = Boolean(process.config.variables.v8_use_perfetto);
 
+const hasDtls = hasCrypto && !!process.features.dtls;
 const hasQuic = hasCrypto && !!process.features.quic;
 
 const hasLocalStorage = (() => {
-  try {
-    return hasSQLite && globalThis.localStorage !== undefined;
-  } catch {
-    return false;
-  }
+  // Check enumerable property to avoid triggering the getter which emits a warning.
+  // localStorage is enumerable only when --localstorage-file is provided.
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  return hasSQLite && desc?.enumerable === true;
 })();
 
 /**
@@ -370,7 +376,6 @@ const knownGlobals = new Set([
  'CompressionStream',
  'DecompressionStream',
  'Storage',
- 'sessionStorage',
 ].forEach((i) => {
   if (globalThis[i] !== undefined) {
     knownGlobals.add(globalThis[i]);
@@ -386,6 +391,9 @@ if (hasCrypto) {
 
 if (hasLocalStorage) {
   knownGlobals.add(globalThis.localStorage);
+}
+if (hasSQLite) {
+  knownGlobals.add(globalThis.sessionStorage);
 }
 
 const { Worker } = require('node:worker_threads');
@@ -757,6 +765,24 @@ function skipIfSQLiteMissing() {
   }
 }
 
+function skipIfFFIMissing() {
+  if (!hasFFI) {
+    skip('missing FFI');
+  }
+}
+
+function skipIfPerfettoEnabled() {
+  if (hasPerfetto) {
+    skip('Perfetto is enabled');
+  }
+}
+
+function skipIfPerfettoDisabled() {
+  if (!hasPerfetto) {
+    skip('Perfetto is disabled');
+  }
+}
+
 function getArrayBufferViews(buf) {
   const { buffer, byteOffset, byteLength } = buf;
 
@@ -830,8 +856,9 @@ function invalidArgTypeHelper(input) {
     return ` Received function ${input.name}`;
   }
   if (typeof input === 'object') {
-    if (input.constructor?.name) {
-      return ` Received an instance of ${input.constructor.name}`;
+    const name = input.constructor?.name;
+    if (typeof name === 'string' && name !== '') {
+      return ` Received an instance of ${name}`;
     }
     return ` Received ${inspect(input, { depth: -1 })}`;
   }
@@ -931,14 +958,36 @@ function expectRequiredModule(mod, expectation, checkESModule = true) {
   assert.deepStrictEqual(clone, { ...expectation });
 }
 
-function expectRequiredTLAError(err) {
+// Extract the entries of the rendered "Require stack:" list (each shown as
+// "- <path>") from an error message or a process output string.
+function expectRequireStack(output, expected) {
+  const lines = output.replace(/\r/g, '').split('\n');
+  const start = lines.indexOf('Require stack:');
+  if (start === -1) {
+    assert.deepStrictEqual([], expected);
+    return;
+  }
+  const stack = [];
+  for (let i = start + 1; i < lines.length && lines[i].startsWith('- '); i++) {
+    stack.push(lines[i].slice(2));
+  }
+  assert.deepStrictEqual(stack, expected);
+}
+
+function expectRequiredTLAError(err, stack) {
   const message = /require\(\) cannot be used on an ESM graph with top-level await/;
   if (typeof err === 'string') {
     assert.match(err, /ERR_REQUIRE_ASYNC_MODULE/);
     assert.match(err, message);
+    if (stack) {
+      expectRequireStack(err, stack);
+    }
   } else {
     assert.strictEqual(err.code, 'ERR_REQUIRE_ASYNC_MODULE');
     assert.match(err.message, message);
+    if (stack) {
+      assert.deepStrictEqual(err.requireStack, stack);
+    }
   }
 }
 
@@ -946,6 +995,13 @@ function sleepSync(ms) {
   const sab = new SharedArrayBuffer(4);
   const i32 = new Int32Array(sab);
   Atomics.wait(i32, 0, 0, ms);
+}
+
+function resolveBuiltBinary(binary) {
+  if (isWindows) {
+    binary += '.exe';
+  }
+  return path.join(path.dirname(process.execPath), binary);
 }
 
 const common = {
@@ -963,11 +1019,15 @@ const common = {
   getBufferSources,
   getTTYfd,
   hasIntl,
+  hasTemporal,
+  hasV8Sandbox,
   hasFullICU,
   hasCrypto,
+  hasDtls,
   hasQuic,
   hasInspector,
   hasSQLite,
+  hasFFI,
   hasLocalStorage,
   invalidArgTypeHelper,
   isAlive,
@@ -978,6 +1038,7 @@ const common = {
   isOpenBSD,
   isMacOS,
   isPi,
+  isRiscv64,
   isSunOS,
   isWindows,
   localIPv6Hosts,
@@ -988,19 +1049,25 @@ const common = {
   mustSucceed,
   nodeProcessAborted,
   PIPE,
+  expectRequireStack,
   parseTestMetadata,
   platformTimeout,
   printSkipMessage,
   pwdCommand,
   requireNoPackageJSONAbove,
+  resolveBuiltBinary,
   runWithInvalidFD,
   skip,
   skipIf32Bits,
   skipIfEslintMissing,
   skipIfInspectorDisabled,
+  skipIfFFIMissing,
   skipIfSQLiteMissing,
+  skipIfPerfettoEnabled,
+  skipIfPerfettoDisabled,
   spawnPromisified,
   sleepSync,
+  usesSharedLibrary,
 
   get enoughTestMem() {
     return require('os').totalmem() > 0x70000000; /* 1.75 Gb */

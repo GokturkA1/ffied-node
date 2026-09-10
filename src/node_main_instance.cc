@@ -51,11 +51,11 @@ NodeMainInstance::NodeMainInstance(const SnapshotData* snapshot_data,
 
   // If the indexes are not nullptr, we are not deserializing
   isolate_data_.reset(
-      CreateIsolateData(isolate_,
-                        event_loop,
-                        platform,
-                        array_buffer_allocator_.get(),
-                        snapshot_data->AsEmbedderWrapper().get()));
+      IsolateData::CreateIsolateData(isolate_,
+                                     event_loop,
+                                     platform,
+                                     array_buffer_allocator_.get(),
+                                     snapshot_data));
 
   isolate_data_->max_young_gen_size =
       isolate_params_->constraints.max_young_generation_size_in_bytes();
@@ -103,7 +103,7 @@ ExitCode NodeMainInstance::Run() {
 void NodeMainInstance::Run(ExitCode* exit_code, Environment* env) {
   if (*exit_code == ExitCode::kNoFailure) {
     if (!sea::MaybeLoadSingleExecutableApplication(env)) {
-      LoadEnvironment(env, StartExecutionCallback{});
+      LoadEnvironment(env, StartExecutionCallbackWithModule{});
     }
 
     *exit_code =

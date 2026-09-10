@@ -1,89 +1,191 @@
 {
   pkgs ? import ./tools/nix/pkgs.nix { },
-  loadJSBuiltinsDynamically ? true, # Load `lib/**.js` from disk instead of embedding
-  withTemporal ? false,
-  ncu-path ? null, # Provide this if you want to use a local version of NCU
-  icu ? pkgs.icu,
-  sharedLibDeps ? import ./tools/nix/sharedLibDeps.nix { inherit pkgs withTemporal; },
+
+  # Optional build tools / config
   ccache ? pkgs.ccache,
+  loadJSBuiltinsDynamically ? true, # Load `lib/**.js` from disk instead of embedding
   ninja ? pkgs.ninja,
+  extraConfigFlags ? [
+    "--debug-node"
+  ],
+  useSeparateDerivationForV8 ? false, # to help CI better managed its binary cache, not recommended outside of CI usage.
+
+  # Build options
+  icu ? pkgs.icu,
+  withAmaro ? true,
+  withLief ? true,
+  withQuic ? false,
+  withSQLite ? true,
+  withFFI ? true,
+  withSSL ? true,
+  withTemporal ? false,
+  withPerfetto ? false,
+  sharedLibDeps ? (
+    import ./tools/nix/sharedLibDeps.nix {
+      inherit
+        pkgs
+        withLief
+        withQuic
+        withSQLite
+        withFFI
+        withSSL
+        withPerfetto
+        withTemporal
+        ;
+    }
+  ),
+
+  # PKCS#11 fixture for `test/parallel/test-crypto-key-store-pkcs11.js`. `true`
+  # builds the one from tools/nix/pkcs11.nix against the OpenSSL being linked,
+  # which needs a shared OpenSSL >= 3 and a platform nixpkgs ships
+  # pkcs11-provider for. `false` and `null` disable it, any other value is used
+  # as the fixture itself.
+  pkcs11 ? false,
+
+  # dev tools (not needed to build Node.js, useful to maintain it)
+  ncu-path ? null, # Provide this if you want to use a local version of NCU
   devTools ? import ./tools/nix/devTools.nix { inherit pkgs ncu-path; },
   benchmarkTools ? import ./tools/nix/benchmarkTools.nix { inherit pkgs; },
-  extraConfigFlags ? [
-    "--without-npm"
-    "--debug-node"
-  ]
-  ++ pkgs.lib.optionals withTemporal [
-    "--v8-enable-temporal-support"
-  ],
 }:
 
 let
   useSharedICU = if builtins.isString icu then icu == "system" else icu != null;
   useSharedAda = builtins.hasAttr "ada" sharedLibDeps;
   useSharedOpenSSL = builtins.hasAttr "openssl" sharedLibDeps;
+
+  useSharedPerfetto = builtins.hasAttr "perfetto" sharedLibDeps;
+  useSharedTemporal = builtins.hasAttr "temporal_capi" sharedLibDeps;
+  needsRustCompiler = withTemporal && !useSharedTemporal;
+
+  nativeBuildInputs =
+    pkgs.nodejs-slim_latest.nativeBuildInputs
+    ++ pkgs.lib.optionals needsRustCompiler [
+      pkgs.cargo
+      pkgs.rustc
+    ];
+  buildInputs =
+    pkgs.lib.optional useSharedICU icu
+    ++ pkgs.lib.optional (builtins.hasAttr "abseil" sharedLibDeps) sharedLibDeps.abseil
+    ++ pkgs.lib.optional (builtins.hasAttr "highway" sharedLibDeps) sharedLibDeps.highway
+    ++ pkgs.lib.optional (withPerfetto && useSharedPerfetto) sharedLibDeps.perfetto
+    ++ pkgs.lib.optional (withTemporal && useSharedTemporal) sharedLibDeps.temporal_capi;
+
+  # Put here only the configure flags that affect the V8 build
+  configureFlags = [
+    (
+      if icu == null then
+        "--without-intl"
+      else
+        "--with-intl=${if useSharedICU then "system" else icu}-icu"
+    )
+    "--v8-${if withTemporal then "enable" else "disable"}-temporal-support"
+  ]
+  ++ pkgs.lib.optional (builtins.hasAttr "abseil" sharedLibDeps) "--shared-abseil"
+  ++ pkgs.lib.optional (builtins.hasAttr "highway" sharedLibDeps) "--shared-highway"
+  ++ pkgs.lib.optional (withPerfetto && useSharedPerfetto) "--shared-perfetto"
+  ++ pkgs.lib.optional (withTemporal && useSharedTemporal) "--shared-temporal_capi"
+  ++ pkgs.lib.optional withPerfetto "--with-perfetto";
 in
 pkgs.mkShell {
-  inherit (pkgs.nodejs_latest) nativeBuildInputs;
+  inherit nativeBuildInputs;
 
-  buildInputs = builtins.attrValues sharedLibDeps ++ pkgs.lib.optional useSharedICU icu;
+  buildInputs =
+    builtins.attrValues sharedLibDeps
+    ++ buildInputs
+    ++ pkgs.lib.optional (useSeparateDerivationForV8 != false) (
+      if useSeparateDerivationForV8 == true then
+        let
+          sharedLibsToMock = pkgs.callPackage ./tools/nix/non-v8-deps-mock.nix { };
+        in
+        pkgs.callPackage ./tools/nix/v8.nix {
+          inherit nativeBuildInputs icu;
 
-  packages = [
-    ccache
-  ]
-  ++ devTools
-  ++ benchmarkTools
-  ++ pkgs.lib.optionals (withTemporal && !builtins.hasAttr "temporal_capi" sharedLibDeps) [
-    pkgs.cargo
-    pkgs.rustc
-  ];
+          configureFlags = configureFlags ++ sharedLibsToMock.configureFlags ++ [ "--ninja" ];
+          buildInputs = buildInputs ++ [ sharedLibsToMock ];
+        }
+      else
+        useSeparateDerivationForV8
+    );
 
-  shellHook =
-    if (ccache != null) then
-      ''
-        export CC="${pkgs.lib.getExe ccache} $CC"
-        export CXX="${pkgs.lib.getExe ccache} $CXX"
-      ''
-    else
-      "";
+  packages = devTools ++ benchmarkTools ++ pkgs.lib.optional (ccache != null) ccache;
 
-  BUILD_WITH = if (ninja != null) then "ninja" else "make";
-  NINJA = if (ninja != null) then "${pkgs.lib.getExe ninja}" else "";
-  CI_SKIP_TESTS = pkgs.lib.concatStringsSep "," (
-    [ ]
-    ++ pkgs.lib.optionals useSharedAda [
-      # Different versions of Ada affect the WPT tests
-      "test-url"
-    ]
-    ++ pkgs.lib.optionals useSharedOpenSSL [
-      # Path to the openssl.cnf is different from the expected one
-      "test-strace-openat-openssl"
-    ]
-  );
-  CONFIG_FLAGS = builtins.toString (
-    [
-      (
-        if icu == null then
-          "--without-intl"
+  shellHook = pkgs.lib.optionalString (ccache != null) ''
+    export CC="${pkgs.lib.getExe ccache} $CC"
+    export CXX="${pkgs.lib.getExe ccache} $CXX"
+  '';
+
+  env = {
+    BUILD_WITH = if (ninja != null) then "ninja" else "make";
+    NINJA = pkgs.lib.optionalString (ninja != null) "${pkgs.lib.getExe ninja}";
+    CONFIG_FLAGS = builtins.toString (
+      configureFlags
+      ++ extraConfigFlags
+      ++ pkgs.lib.optional (ninja != null) "--ninja"
+      ++ pkgs.lib.optional (!withAmaro) "--without-amaro"
+      ++ pkgs.lib.optional (!withLief) "--without-lief"
+      ++ pkgs.lib.optional withQuic "--experimental-quic"
+      ++ pkgs.lib.optional (!withSQLite) "--without-sqlite"
+      ++ pkgs.lib.optional (!withFFI) "--without-ffi"
+      ++ pkgs.lib.optional (!withSSL) "--without-ssl"
+      ++ pkgs.lib.optional loadJSBuiltinsDynamically "--node-builtin-modules-path=${builtins.toString ./.}"
+      ++ pkgs.lib.optional (useSeparateDerivationForV8 != false) "--without-bundled-v8"
+      ++
+        pkgs.lib.concatMap
+          (name: [
+            "--shared-${name}"
+            "--shared-${name}-libpath=${pkgs.lib.getLib sharedLibDeps.${name}}/lib"
+            "--shared-${name}-include=${pkgs.lib.getInclude sharedLibDeps.${name}}/include"
+          ])
+          (
+            builtins.attrNames (
+              if (useSeparateDerivationForV8 != false) then
+                builtins.removeAttrs sharedLibDeps [
+                  "abseil"
+                  "highway"
+                  "simdutf"
+                  "temporal_capi"
+                ]
+              else
+                sharedLibDeps
+            )
+          )
+    );
+  }
+  // (
+    let
+      ruff = pkgs.lib.lists.findFirst (p: p.meta.mainProgram == "ruff") null devTools;
+    in
+    pkgs.lib.optionalAttrs (ruff != null) {
+      RUFF = pkgs.lib.getExe ruff;
+    }
+  )
+  // (
+    let
+      yamllint = pkgs.lib.lists.findFirst (p: p.meta.mainProgram == "yamllint") null devTools;
+    in
+    pkgs.lib.optionalAttrs (yamllint != null) {
+      YAMLLINT = pkgs.lib.getExe yamllint;
+    }
+  )
+  // pkgs.lib.optionalAttrs (!withSQLite) {
+    NOSQLITE = "1";
+  }
+  // pkgs.lib.optionalAttrs (pkcs11 != false && pkcs11 != null) (
+    let
+      pkcs11' =
+        if pkcs11 == true then
+          import ./tools/nix/pkcs11.nix {
+            inherit pkgs;
+            # Building pkcs11-provider without a shared OpenSSL is not supported.
+            inherit (sharedLibDeps) openssl;
+          }
         else
-          "--with-intl=${if useSharedICU then "system" else icu}-icu"
-      )
-    ]
-    ++ extraConfigFlags
-    ++ pkgs.lib.optionals (ninja != null) [
-      "--ninja"
-    ]
-    ++ pkgs.lib.optionals loadJSBuiltinsDynamically [
-      "--node-builtin-modules-path=${builtins.toString ./.}"
-    ]
-    ++ pkgs.lib.concatMap (name: [
-      "--shared-${builtins.replaceStrings [ "c-ares" ] [ "cares" ] name}"
-      "--shared-${builtins.replaceStrings [ "c-ares" ] [ "cares" ] name}-libpath=${
-        pkgs.lib.getLib sharedLibDeps.${name}
-      }/lib"
-      "--shared-${builtins.replaceStrings [ "c-ares" ] [ "cares" ] name}-include=${
-        pkgs.lib.getInclude sharedLibDeps.${name}
-      }/include"
-    ]) (builtins.attrNames sharedLibDeps)
+          pkcs11;
+    in
+    {
+      NODE_TEST_PKCS11_OPENSSL_CONF = pkcs11'.opensslConf;
+      NODE_TEST_PKCS11_PIN = pkcs11'.softhsmDir.pin;
+      NODE_TEST_PKCS11_SOFTHSM_DIR = pkcs11'.softhsmDir;
+    }
   );
 }

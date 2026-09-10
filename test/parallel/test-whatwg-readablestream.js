@@ -15,6 +15,7 @@ const {
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableStream,
+  ReadableStreamTee,
   ReadableStreamDefaultReader,
   ReadableStreamDefaultController,
   ReadableByteStreamController,
@@ -36,7 +37,8 @@ const {
 } = require('internal/webstreams/readablestream');
 
 const {
-  kState
+  kState,
+  Queue,
 } = require('internal/webstreams/util');
 
 const {
@@ -340,8 +342,8 @@ assert.throws(() => {
   const read1 = reader.read();
   const read2 = reader.read();
 
-  read1.then(common.mustNotCall(), common.mustCall());
-  read2.then(common.mustNotCall(), common.mustCall());
+  assert.rejects(read1, () => true).then(common.mustCall());
+  assert.rejects(read2, () => true).then(common.mustCall());
 
   assert.notStrictEqual(read1, read2);
 
@@ -668,7 +670,7 @@ assert.throws(() => {
     reader.read().then(common.mustCall(({ value, done }) => {
       assert.deepStrictEqual(value, buf2);
       assert(!done);
-      reader.read().then(common.mustNotCall());
+      reader.read().then(common.mustNotCall('never settling promise expected'));
       delay().then(common.mustCall());
     }));
   }));
@@ -1528,6 +1530,28 @@ class Source {
 }
 
 {
+  // Test public ReadableStreamTee() cloneForBranch2 argument
+  assert.strictEqual(typeof ReadableStreamTee, 'function');
+  const chunk = new Uint8Array([65]);
+  const readable = new ReadableStream({
+    start(controller) {
+      controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+  const [r1, r2] = ReadableStreamTee(readable, true);
+
+  (async () => {
+    const { value: value1 } = await r1.getReader().read();
+    assert.strictEqual(value1[0], 65);
+    value1[0] = 66;
+
+    const { value: value2 } = await r2.getReader().read();
+    assert.strictEqual(value2[0], 65);
+  })().then(common.mustCall());
+}
+
+{
   // Test tee() cloneForBranch2 argument
   const readable = new ReadableStream({
     start(controller) {
@@ -1536,9 +1560,9 @@ class Source {
   });
   const [r1, r2] = readableStreamTee(readable, true);
   r1.getReader().read().then(
-    common.mustCall(({ value }) => assert.strictEqual(value, 'hello')));
+    common.mustCall(({ value }) => { assert.strictEqual(value, 'hello'); }));
   r2.getReader().read().then(
-    common.mustCall(({ value }) => assert.strictEqual(value, 'hello')));
+    common.mustCall(({ value }) => { assert.strictEqual(value, 'hello'); }));
 }
 
 {
@@ -1558,7 +1582,9 @@ class Source {
     start(c) { controller = c; }
   });
 
-  controller[kState].pendingPullIntos = [{}];
+  const pendingPullIntos = new Queue();
+  pendingPullIntos.push({});
+  controller[kState].pendingPullIntos = pendingPullIntos;
   assert.throws(() => readableByteStreamControllerRespond(controller, 0), {
     code: 'ERR_INVALID_ARG_VALUE',
   });
@@ -1711,7 +1737,7 @@ class Source {
   const iterator = stream.values();
 
   let microtaskCompleted = false;
-  Promise.resolve().then(() => { microtaskCompleted = true; });
+  Promise.resolve().then(() => { microtaskCompleted = true; }).then(common.mustCall());
 
   iterator.next().then(common.mustCall(({ done, value }) => {
     assert.strictEqual(done, false);

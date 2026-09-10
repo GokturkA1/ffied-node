@@ -474,7 +474,8 @@ static void PrintJavaScriptStack(JSONWriter* writer,
                                  std::string_view trigger) {
   HandleScope scope(isolate);
   Local<v8::StackTrace> stack;
-  if (!GetCurrentStackTrace(isolate, MAX_FRAME_COUNT).ToLocal(&stack)) {
+  if (!GetCurrentStackTrace(isolate, MAX_FRAME_COUNT).ToLocal(&stack) ||
+      stack->GetFrameCount() == 0) {
     PrintEmptyJavaScriptStack(writer);
     return;
   }
@@ -834,13 +835,6 @@ std::string TriggerNodeReport(Isolate* isolate,
   //   1) supplied on API 2) configured on startup 3) default generated
   if (!name.empty()) {
     filename = name;
-    // we may not always be in a great state when generating a node report
-    // allow for the case where we don't have an env
-    if (env != nullptr) {
-      THROW_IF_INSUFFICIENT_PERMISSIONS(
-          env, permission::PermissionScope::kFileSystemWrite, name, filename);
-      // Filename was specified as API parameter.
-    }
   } else {
     std::string report_filename;
     {
@@ -853,13 +847,6 @@ std::string TriggerNodeReport(Isolate* isolate,
     } else {
       filename = *DiagnosticFilename(
           env != nullptr ? env->thread_id() : 0, "report", "json");
-    }
-    if (env != nullptr) {
-      THROW_IF_INSUFFICIENT_PERMISSIONS(
-          env,
-          permission::PermissionScope::kFileSystemWrite,
-          Environment::GetCwd(env->exec_path()),
-          filename);
     }
   }
 
@@ -878,12 +865,21 @@ std::string TriggerNodeReport(Isolate* isolate,
       report_directory = per_process::cli_options->report_directory;
     }
     // Regular file. Append filename to directory path if one was specified
+    std::string pathname;
     if (report_directory.length() > 0) {
-      std::string pathname = report_directory + kPathSeparator + filename;
-      outfile.open(pathname, std::ios::out | std::ios::binary);
+      pathname = report_directory + kPathSeparator + filename;
     } else {
-      outfile.open(filename, std::ios::out | std::ios::binary);
+      pathname = filename;
     }
+
+    // We may not always be in a great state when generating a node report.
+    // Allow for the case where we don't have an env.
+    if (env != nullptr) {
+      THROW_IF_INSUFFICIENT_PERMISSIONS(
+          env, permission::PermissionScope::kFileSystemWrite, pathname, "");
+    }
+
+    outfile.open(pathname, std::ios::out | std::ios::binary);
     // Check for errors on the file open
     if (!outfile.is_open()) {
       std::cerr << "\nFailed to open Node.js report file: " << filename;

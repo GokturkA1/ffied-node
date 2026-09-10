@@ -6,6 +6,8 @@
 #include "src/base/logging.h"
 #include "src/base/strings.h"
 #include "src/common/globals.h"
+#include "src/heap/heap.h"
+#include "src/objects/backing-store.h"
 #include "src/objects/js-array-buffer-inl.h"
 #include "src/sandbox/sandbox.h"
 #include "test/cctest/heap/heap-utils.h"
@@ -171,7 +173,7 @@ TEST(ArrayBuffer_MaxSize) {
 
   {
     i::Heap* heap = reinterpret_cast<i::Isolate*>(isolate)->heap();
-    int gc_count = heap->gc_count();
+    i::GCEpoch gc_count = heap->gc_count();
     v8::HandleScope scope(isolate);
     LocalContext context(isolate);
 
@@ -252,7 +254,7 @@ TEST(ArrayBuffer_TotalSize) {
 
   {
     i::Heap* heap = reinterpret_cast<i::Isolate*>(isolate)->heap();
-    int gc_count = heap->gc_count();
+    i::GCEpoch gc_count = heap->gc_count();
     v8::HandleScope scope(isolate);
     LocalContext context(isolate);
     // When some allocation below fails, we need to invoke GC without stack,
@@ -1274,4 +1276,78 @@ TEST(ArrayBufferView_GetContentsOutOfBounds) {
       "ab.resize(1); "
       "ta";
   TestArrayBufferViewGetContent(source, nullptr);
+}
+
+TEST(ArrayBuffer_ImmutableBackingStore) {
+  LocalContext env;
+  v8::Isolate* isolate = env.isolate();
+  v8::HandleScope scope(isolate);
+
+  std::unique_ptr<v8::BackingStore> backing_store =
+      v8::ArrayBuffer::NewBackingStore(isolate, 100);
+  CHECK(backing_store);
+
+  v8::internal::BackingStore* i_backing_store =
+      reinterpret_cast<v8::internal::BackingStore*>(backing_store.get());
+
+  i_backing_store->set_is_immutable(true);
+  CHECK(i_backing_store->is_immutable());
+
+  std::shared_ptr<v8::BackingStore> shared_backing_store =
+      std::move(backing_store);
+
+  Local<v8::ArrayBuffer> ab =
+      v8::ArrayBuffer::New(isolate, shared_backing_store);
+
+  CHECK(ab->IsImmutable());
+}
+
+TEST(ArrayBuffer_CopyArrayBufferBytes) {
+  LocalContext env;
+  v8::Isolate* isolate = env.isolate();
+  v8::HandleScope scope(isolate);
+  auto ab1 = v8::ArrayBuffer::New(isolate, 6);
+  auto ab2 = v8::ArrayBuffer::New(isolate, 4);
+  std::memcpy(ab1->Data(), "123456", 6);
+  std::memcpy(ab2->Data(), "ABCD", 4);
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 0, ab2, 0));
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(6, 0, ab2, 6));
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 4, ab2, 6));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "ABCD", 4));
+  CHECK_EQ(4, ab1->CopyArrayBufferBytes(0, 6, ab2, 0));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "1234", 4));
+  CHECK_EQ(2, ab1->CopyArrayBufferBytes(0, 6, ab2, 2));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "1212", 4));
+  ab2->Detach(v8::Local<v8::Value>()).Check();
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 6, ab2, 0));
+  std::unique_ptr<v8::BackingStore> backing_store =
+      v8::ArrayBuffer::NewBackingStore(isolate, 6);
+  CHECK(backing_store);
+  v8::internal::BackingStore* i_backing_store =
+      reinterpret_cast<v8::internal::BackingStore*>(backing_store.get());
+  i_backing_store->set_is_immutable(true);
+  CHECK(i_backing_store->is_immutable());
+  std::shared_ptr<v8::BackingStore> shared_backing_store =
+      std::move(backing_store);
+  auto ab3 = v8::ArrayBuffer::New(isolate, shared_backing_store);
+  CHECK(ab3->IsImmutable());
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 6, ab3, 0));
+}
+
+TEST(SharedArrayBuffer_CopyArrayBufferBytes) {
+  LocalContext env;
+  v8::Isolate* isolate = env.isolate();
+  v8::HandleScope scope(isolate);
+  auto ab1 = v8::SharedArrayBuffer::New(isolate, 6);
+  auto ab2 = v8::SharedArrayBuffer::New(isolate, 4);
+  std::memcpy(ab1->Data(), "123456", 6);
+  std::memcpy(ab2->Data(), "ABCD", 4);
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 0, ab2, 0));
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(6, 0, ab2, 6));
+  CHECK_EQ(0, ab1->CopyArrayBufferBytes(0, 4, ab2, 6));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "ABCD", 4));
+  CHECK_EQ(4, ab1->CopyArrayBufferBytes(0, 6, ab2, 0));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "1234", 4));
+  CHECK_EQ(2, ab1->CopyArrayBufferBytes(0, 6, ab2, 2));
+  CHECK_EQ(0, std::memcmp(ab2->Data(), "1212", 4));
 }

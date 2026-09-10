@@ -16,6 +16,13 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "access": null,
   "all": false,
   "allow-same-version": false,
+  "allow-directory": "all",
+  "allow-file": "all",
+  "allow-git": "all",
+  "allow-remote": "all",
+  "allow-scripts": [
+    ""
+  ],
   "also": null,
   "audit": true,
   "audit-level": null,
@@ -33,6 +40,7 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "cidr": null,
   "commit-hooks": true,
   "cpu": null,
+  "dangerously-allow-all-scripts": false,
   "depth": null,
   "description": true,
   "dev": false,
@@ -71,6 +79,7 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "include": [],
   "include-staged": false,
   "include-workspace-root": false,
+  "include-attestations": false,
   "init-author-email": "",
   "init-author-name": "",
   "init-author-url": "",
@@ -102,6 +111,8 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "name": null,
   "maxsockets": 15,
   "message": "%s",
+  "min-release-age": null,
+  "min-release-age-exclude": [],
   "node-gyp": "{CWD}/node_modules/node-gyp/bin/node-gyp.js",
   "node-options": null,
   "noproxy": [
@@ -121,6 +132,8 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "pack-destination": ".",
   "packages": [],
   "parseable": false,
+  "allow-scripts-pending": false,
+  "allow-scripts-pin": true,
   "prefer-dedupe": false,
   "prefer-offline": false,
   "prefer-online": false,
@@ -161,6 +174,7 @@ exports[`test/lib/commands/config.js TAP config list --json > output matches sna
   "sign-git-commit": false,
   "sign-git-tag": false,
   "strict-peer-deps": false,
+  "strict-allow-scripts": false,
   "strict-ssl": true,
   "tag": "latest",
   "tag-version-prefix": "v",
@@ -189,7 +203,14 @@ exports[`test/lib/commands/config.js TAP config list --long > output matches sna
 _auth = (protected)
 access = null
 all = false
+allow-directory = "all"
+allow-file = "all"
+allow-git = "all"
+allow-remote = "all"
 allow-same-version = false
+allow-scripts = [""]
+allow-scripts-pending = false
+allow-scripts-pin = true
 also = null
 audit = true
 audit-level = null
@@ -209,6 +230,7 @@ cidr = null
 ; color = {COLOR}
 commit-hooks = true
 cpu = null
+dangerously-allow-all-scripts = false
 depth = null
 description = true
 dev = false
@@ -245,6 +267,7 @@ https-proxy = null
 if-present = false
 ignore-scripts = false
 include = []
+include-attestations = false
 include-staged = false
 include-workspace-root = false
 init-author-email = ""
@@ -278,6 +301,8 @@ logs-max = 10
 ; long = false ; overridden by cli
 maxsockets = 15
 message = "%s"
+min-release-age = null
+min-release-age-exclude = []
 name = null
 node-gyp = "{CWD}/node_modules/node-gyp/bin/node-gyp.js"
 node-options = null
@@ -336,6 +361,7 @@ shell = "{SHELL}"
 shrinkwrap = true
 sign-git-commit = false
 sign-git-tag = false
+strict-allow-scripts = false
 strict-peer-deps = false
 strict-ssl = true
 tag = "latest"
@@ -447,6 +473,6 @@ registry = "https://some.registry"
 
 exports[`test/lib/commands/config.js TAP config list with publishConfig local > warns about unknown config 1`] = `
 Array [
-  "Unknown publishConfig config /"other/". This will stop working in the next major version of npm.",
+  "Unknown publishConfig config /"other/". This will stop working in the next major version of npm. See \`npm help npmrc\` for supported config options.",
 ]
 `

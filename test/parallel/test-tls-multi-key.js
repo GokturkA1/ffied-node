@@ -27,6 +27,13 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+const { isBoringSSL, hasFIPS } = require('../common/crypto');
+
+if (isBoringSSL) {
+  require('../common/boringssl').assertMultiKeyUnsupported();
+  return;
+}
+
 const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const tls = require('tls');
@@ -138,6 +145,17 @@ test({
 });
 
 function test(options) {
+  if (hasFIPS(3) && options.pfx) {
+    const serverOptions = { ...options };
+    delete serverOptions.rsaCN;
+    delete serverOptions.eccCN;
+    delete serverOptions.client;
+    assert.throws(() => tls.createServer(serverOptions), {
+      code: 'ERR_CRYPTO_UNSUPPORTED_OPERATION',
+    });
+    return;
+  }
+
   const rsaCN = options.rsaCN || 'agent1';
   const eccCN = options.eccCN || 'agent2';
   const clientTrustRoots = options.client.ca;

@@ -20,7 +20,9 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
+
 const common = require('../common');
+const { isBoringSSL } = require('../common/crypto');
 const fixtures = require('../common/fixtures');
 
 if (!common.hasCrypto)
@@ -60,9 +62,15 @@ const server = tls.createServer({
 
   assert.throws(() => c.setMaxSendFragment(Symbol()), { name: 'TypeError' });
 
-  // Lower and upper limits.
-  assert(!c.setMaxSendFragment(511));
-  assert(!c.setMaxSendFragment(16385));
+  // OpenSSL enforces Node's documented fragment size range. BoringSSL accepts
+  // both out-of-range values and reports success, so assert that difference
+  // explicitly instead of using a truthiness shortcut.
+  const acceptsOutOfRangeFragmentSize =
+    isBoringSSL;
+  assert.strictEqual(c.setMaxSendFragment(511),
+                     acceptsOutOfRangeFragmentSize);
+  assert.strictEqual(c.setMaxSendFragment(16385),
+                     acceptsOutOfRangeFragmentSize);
 
   // Correct fragment size.
   assert(c.setMaxSendFragment(maxChunk));

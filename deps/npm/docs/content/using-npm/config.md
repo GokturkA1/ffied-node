@@ -1,7 +1,7 @@
 ---
-title: config
+title: Config
 section: 7
-description: More than you probably want to know about npm configuration
+description: About npm configuration
 ---
 
 ### Description
@@ -19,6 +19,14 @@ Using `--flag` without specifying any value will set the value to `true`.
 
 Example: `--flag1 --flag2` will set both configuration parameters to `true`, while `--flag1 --flag2 bar` will set `flag1` to `true`, and `flag2` to `bar`.
 Finally, `--flag1 --flag2 -- bar` will set both configuration parameters to `true`, and the `bar` is taken as a command argument.
+
+**Common examples:**
+
+* `npm install --prefix /path/to/dir` - Runs npm commands in a different directory without changing the current working directory
+* `npm install --global` - Installs packages globally (shorthand: `-g`)
+* `npm install --save-dev` - Saves to devDependencies (shorthand: `-D`)
+
+Any configuration option documented in the [Config Settings](#config-settings) section below can be set via command line flags using `--option-name value` syntax.
 
 #### Environment Variables
 
@@ -132,7 +140,7 @@ safer to use a registry-provided authentication bearer token stored in the
 
 * Default: 'public' for new packages, existing packages it will not change the
   current level
-* Type: null, "restricted", or "public"
+* Type: null, "restricted", "public", or "private"
 
 If you do not want your scoped package to be publicly viewable (and
 installable) set `--access=restricted`.
@@ -144,6 +152,8 @@ packages. Specifying a value of `restricted` or `public` during publish will
 change the access for an existing package the same way that `npm access set
 status` would.
 
+The value `private` is an alias for `restricted`.
+
 
 
 #### `all`
@@ -151,9 +161,83 @@ status` would.
 * Default: false
 * Type: Boolean
 
-When running `npm outdated` and `npm ls`, setting `--all` will show all
-outdated or installed packages, rather than only those directly depended
-upon by the current project.
+Show or act on all packages, not just the ones your project directly depends
+on. For `npm outdated` and `npm ls` this lists every outdated or installed
+package. For `npm approve-scripts` and `npm deny-scripts` it selects every
+package with pending install scripts.
+
+
+
+#### `allow-directory`
+
+* Default: "all"
+* Type: "all", "none", or "root"
+
+Limits the ability for npm to install dependencies from directories. That
+is, dependencies that point to a directory instead of a version or semver
+range. Please note that this could leave your tree incomplete and some
+packages may not function as intended or designed. Changing this setting
+will not remove dependencies that are already installed.
+
+`all` allows any directories to be installed. `none` prevents any
+directories from being installed. `root` only allows directories defined in
+your project's package.json to be installed. Also allows directory
+dependencies to be used for other commands like `npm view`
+
+
+
+#### `allow-file`
+
+* Default: "all"
+* Type: "all", "none", or "root"
+
+Limits the ability for npm to install dependencies from tarball files. That
+is, dependencies that point to a local tarball file instead of a version or
+semver range. Please note that this could leave your tree incomplete and
+some packages may not function as intended or designed. Changing this
+setting will not remove dependencies that are already installed.
+
+`all` allows any tarball file to be installed. `none` prevents any tarball
+file from being installed. `root` only allows tarball files defined in your
+project's package.json to be installed. Also allows tarball file
+dependencies to be used for other commands like `npm view`
+
+
+
+#### `allow-git`
+
+* Default: "all"
+* Type: "all", "none", or "root"
+
+Limits the ability for npm to fetch dependencies from git references. That
+is, dependencies that point to a git repo instead of a version or semver
+range. Please note that this could leave your tree incomplete and some
+packages may not function as intended or designed. Changing this setting
+will not remove dependencies that are already installed.
+
+`all` allows any git dependencies to be fetched and installed. `none`
+prevents any git dependencies from being fetched and installed. `root` only
+allows git dependencies defined in your project's package.json to be fetched
+and installed. Also allows git dependencies to be fetched for other commands
+like `npm view`
+
+
+
+#### `allow-remote`
+
+* Default: "all"
+* Type: "all", "none", or "root"
+
+Limits the ability for npm to fetch dependencies from urls. That is,
+dependencies that point to a tarball url instead of a version or semver
+range. Please note that this could leave your tree incomplete and some
+packages may not function as intended or designed. Changing this setting
+will not remove dependencies that are already installed.
+
+`all` allows any url to be installed. `none` prevents any url from being
+installed. `root` only allows urls defined in your project's package.json to
+be installed. Also allows url dependencies to be used for other commands
+like `npm view`
 
 
 
@@ -164,6 +248,51 @@ upon by the current project.
 
 Prevents throwing an error when `npm version` is used to set the new version
 to the same value as the current version.
+
+
+
+#### `allow-scripts`
+
+* Default: ""
+* Type: String (can be set multiple times)
+
+Comma-separated list of packages whose install-time lifecycle scripts
+(`preinstall`, `install`, `postinstall`, and `prepare` for non-registry
+dependencies) are allowed to run.
+
+This setting is intended for one-off and global contexts: `npm exec`, `npx`,
+and `npm install -g`, where no project `package.json` is involved. For
+team-wide policy in a project, use the `allowScripts` field in
+`package.json` (which also supports explicit denials), or configure it in
+`.npmrc`. Passing `--allow-scripts` on the command line during a
+project-scoped `npm install`, `ci`, `update`, or `rebuild` is an error.
+
+Each name is matched against a dependency's resolved identity, not against
+the package's self-reported name. `--ignore-scripts` and
+`--dangerously-allow-all-scripts` both override this setting.
+
+
+
+#### `allow-scripts-pending`
+
+* Default: false
+* Type: Boolean
+
+List packages with install scripts that are not yet covered by the
+`allowScripts` policy, without modifying `package.json`. Only meaningful for
+`npm approve-scripts`.
+
+
+
+#### `allow-scripts-pin`
+
+* Default: true
+* Type: Boolean
+
+Write pinned (`pkg@version`) entries when approving install scripts. Set to
+`false` to write name-only entries that allow any version. Has no effect on
+`npm deny-scripts`, which always writes name-only entries regardless of this
+setting.
 
 
 
@@ -213,6 +342,19 @@ If the requested version is a `dist-tag` and the given tag does not pass the
 `--before` filter, the most recent version less than or equal to that tag
 will be used. For example, `foo@latest` might install `foo@1.2` even though
 `latest` is `2.0`.
+
+If `before` and `min-release-age` are both set in the same source, `before`
+wins (an explicit absolute date overrides a relative window). Across
+sources, the standard precedence applies (cli > env > project > user >
+global), so a higher-priority source can always relax or override a
+lower-priority one.
+
+As with `min-release-age`, when this cutoff blocks a fix that `npm audit
+fix` would install, npm keeps the vulnerable version, warns, and exits with
+a non-zero code.
+
+Packages whose names match `min-release-age-exclude` are exempt from this
+filter.
 
 
 
@@ -353,6 +495,18 @@ Run git commit hooks when using the `npm version` command.
 
 Override CPU architecture of native modules to install. Acceptable values
 are same as `cpu` field of package.json, which comes from `process.arch`.
+
+
+
+#### `dangerously-allow-all-scripts`
+
+* Default: false
+* Type: Boolean
+
+If `true`, bypass the `allowScripts` policy entirely and run every
+dependency install script regardless of whether it was approved or denied.
+Intended as a migration escape hatch only; its use is strongly discouraged.
+`--ignore-scripts` still takes precedence over this setting.
 
 
 
@@ -744,6 +898,18 @@ the order in which omit/include are specified on the command-line.
 
 
 
+#### `include-attestations`
+
+* Default: false
+* Type: Boolean
+
+When used with `npm audit signatures --json`, includes the full sigstore
+attestation bundles in the JSON output for each verified package. The
+bundles contain DSSE envelopes, verification material, and transparency log
+entries.
+
+
+
 #### `include-staged`
 
 * Default: false
@@ -867,8 +1033,16 @@ Sets the strategy for installing packages in node_modules. hoisted
 (default): Install non-duplicated in top-level, and duplicated as necessary
 within directory structure. nested: (formerly --legacy-bundling) install in
 place, no hoisting. shallow (formerly --global-style) only install direct
-deps at top-level. linked: (experimental) install in node_modules/.store,
-link in place, unhoisted.
+deps at top-level. linked: install in node_modules/.store, link in place,
+unhoisted.
+
+We recommend that package authors use `--install-strategy=linked` during
+development to catch undeclared ("phantom") dependencies before publishing:
+the isolated layout only exposes a package's declared dependencies, so an
+`import` of a package that was never added to `package.json` can fail
+instead of resolving by accident and shipping broken. See [Catching
+undeclared ("phantom")
+dependencies](/using-npm/developers#catching-undeclared-phantom-dependencies).
 
 
 
@@ -1045,6 +1219,62 @@ Any "%s" in the message will be replaced with the version number.
 
 
 
+#### `min-release-age`
+
+* Default: null
+* Type: null or Number
+
+If set, npm will build the npm tree such that only versions that were
+available more than the given number of days ago will be installed. If there
+are no versions available for the current set of dependencies, the command
+will error.
+
+This flag is a complement to `before`, which accepts an exact date instead
+of a relative number of days. The two may coexist (e.g. `min-release-age` in
+your `.npmrc` is preserved when npm internally spawns a sub-process with
+`--before` while preparing a `git:` or `github:` dependency); when both
+apply, `before` wins within a single source and across sources the standard
+precedence rules apply.
+
+When this window stops `npm audit fix` from installing a patched version
+(because the fix was published too recently), npm keeps the package at its
+vulnerable version, warns that the fix was blocked, and exits with a
+non-zero code. To install the fix, add the package to
+`min-release-age-exclude`, or relax `min-release-age` or `before`.
+
+Packages whose names match `min-release-age-exclude` are exempt from this
+filter.
+
+This value is not exported to the environment for child processes.
+
+#### `min-release-age-exclude`
+
+* Default:
+* Type: String (can be set multiple times)
+
+A list of package names or `minimatch` glob patterns that are exempt from
+the `min-release-age` (and `before`) filter. A matching package can always
+resolve to its newest version, even when a release-age window is set.
+
+For example, to apply a release-age window to third-party dependencies while
+letting internally maintained packages update immediately:
+
+```
+min-release-age=7
+min-release-age-exclude[]=@myorg/*
+min-release-age-exclude[]=my-internal-pkg
+```
+
+Only the named package is exempt; its own dependencies still follow the
+release-age policy unless they also match a pattern. Patterns match against
+the package name, so `@myorg/*` matches `@myorg/shared-utils`.
+
+Excluding a package does not change which registry it is fetched from. You
+should own your private scope on the public registry so that nobody else can
+publish a package with the same name.
+
+This value is not exported to the environment for child processes.
+
 #### `name`
 
 * Default: null
@@ -1138,8 +1368,7 @@ time.
 * Type: null or String (can be set multiple times)
 
 When creating a Granular Access Token with `npm token create`, this limits
-the token access to specific organizations. Provide a comma-separated list
-of organization names.
+the token access to specific organizations.
 
 
 
@@ -1227,8 +1456,7 @@ For `list` this means the output will be based on the tree described by the
 * Type: null or String (can be set multiple times)
 
 When creating a Granular Access Token with `npm token create`, this limits
-the token access to specific packages. Provide a comma-separated list of
-package names.
+the token access to specific packages.
 
 
 
@@ -1410,7 +1638,14 @@ registry (https://registry.npmjs.org) to the configured registry. If set to
 "never", then use the registry value. If set to "always", then replace the
 registry host with the configured host every time.
 
-You may also specify a bare hostname (e.g., "registry.npmjs.org").
+You may also specify a bare hostname (e.g., "registry.npmjs.org") to only
+replace URLs coming from that host.
+
+You may also specify a full URL including a path (e.g.,
+"https://old-registry.example.com/npm/path"). In that case, resolved URLs
+whose host and path begin with that prefix will have the entire prefix
+replaced with the configured registry URL (host and path), without
+duplicating path segments.
 
 
 
@@ -1564,8 +1799,8 @@ npm init --scope=@foo --yes
 * Type: null or String (can be set multiple times)
 
 When creating a Granular Access Token with `npm token create`, this limits
-the token access to specific scopes. Provide a comma-separated list of scope
-names (with or without @ prefix).
+the token access to specific scopes. Provide a scope name (with or without @
+prefix).
 
 
 
@@ -1650,6 +1885,26 @@ If set to true, then the `npm version` command will tag the version using
 
 Note that git requires you to have set up GPG keys in your git configs for
 this to work properly.
+
+
+
+#### `strict-allow-scripts`
+
+* Default: false
+* Type: Boolean
+
+If `true`, turn the install-script policy from a warning into a hard error:
+any dependency with install scripts not covered by `allowScripts` will fail
+the install instead of running with a notice.
+
+Dependencies explicitly denied with `false` in `allowScripts` are always
+silently skipped; this setting only affects unreviewed entries.
+`--ignore-scripts` and `--dangerously-allow-all-scripts` both override this
+setting.
+
+Optional dependencies that cannot be installed on the current platform or
+engine (a non-matching `os`, `cpu`, or `libc`) are not flagged, because
+their install scripts never run.
 
 
 

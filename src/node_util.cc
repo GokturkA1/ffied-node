@@ -18,15 +18,18 @@ using v8::CFunction;
 using v8::Context;
 using v8::DictionaryTemplate;
 using v8::External;
+using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::IndexFilter;
 using v8::Integer;
 using v8::Isolate;
 using v8::KeyCollectionMode;
+using v8::kPromiseHandlerAddedAfterReject;
 using v8::Local;
 using v8::LocalVector;
 using v8::MaybeLocal;
 using v8::Name;
+using v8::Number;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::ONLY_CONFIGURABLE;
@@ -93,7 +96,7 @@ static void GetExternalValue(
   Isolate* isolate = args.GetIsolate();
   Local<External> external = args[0].As<External>();
 
-  void* ptr = external->Value();
+  void* ptr = external->Value(v8::kExternalPointerTypeTagDefault);
   uint64_t value = reinterpret_cast<uint64_t>(ptr);
   Local<BigInt> ret = BigInt::NewFromUnsigned(isolate, value);
   args.GetReturnValue().Set(ret);
@@ -258,7 +261,7 @@ static void GetCallSites(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(context);
 
   CHECK_EQ(args.Length(), 1);
-  CHECK(args[0]->IsNumber());
+  CHECK(args[0]->IsUint32());
   const uint32_t frames = args[0].As<Uint32>()->Value();
   CHECK(frames >= 1 && frames <= 200);
 
@@ -320,22 +323,20 @@ static void GetCallSites(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(callsites);
 }
 
+/**
+ * Checks whether the current call directly initiated from a file inside
+ * node_modules. This checks up to `frame_limit` stack frames, until it finds
+ * a frame that is not part of node internal modules.
+ */
 static void IsInsideNodeModules(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
-  CHECK_EQ(args.Length(), 2);
-  CHECK(args[0]->IsInt32());  // frame_limit
-  // The second argument is the default value.
 
-  int frames_limit = args[0].As<v8::Int32>()->Value();
+  int frames_limit = (args.Length() > 0 && args[0]->IsInt32())
+                         ? args[0].As<v8::Int32>()->Value()
+                         : 10;
   Local<StackTrace> stack =
       StackTrace::CurrentStackTrace(isolate, frames_limit);
   int frame_count = stack->GetFrameCount();
-
-  // If the search requires looking into more than |frames_limit| frames, give
-  // up and return the specified default value.
-  if (frame_count == frames_limit) {
-    return args.GetReturnValue().Set(args[1]);
-  }
 
   bool result = false;
   for (int i = 0; i < frame_count; ++i) {
@@ -350,13 +351,11 @@ static void IsInsideNodeModules(const FunctionCallbackInfo<Value>& args) {
     if (script_name_str.starts_with("node:")) {
       continue;
     }
-    if (script_name_str.find("/node_modules/") != std::string::npos ||
-        script_name_str.find("\\node_modules\\") != std::string::npos ||
-        script_name_str.find("/node_modules\\") != std::string::npos ||
-        script_name_str.find("\\node_modules/") != std::string::npos) {
-      result = true;
-      break;
-    }
+    result = script_name_str.find("/node_modules/") != std::string::npos ||
+             script_name_str.find("\\node_modules\\") != std::string::npos ||
+             script_name_str.find("/node_modules\\") != std::string::npos ||
+             script_name_str.find("\\node_modules/") != std::string::npos;
+    break;
   }
 
   args.GetReturnValue().Set(result);
@@ -370,7 +369,7 @@ static void DefineLazyPropertiesGetter(
   // When this getter is invoked in a vm context, the `Realm::GetCurrent(info)`
   // returns a nullptr and retrieve the creation context via `this` object and
   // get the creation Realm.
-  Local<Value> receiver_val = info.This();
+  Local<Value> receiver_val = info.HolderV2();
   if (!receiver_val->IsObject()) {
     THROW_ERR_INVALID_INVOCATION(isolate);
     return;
@@ -464,6 +463,35 @@ void ConstructSharedArrayBuffer(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(sab);
 }
 
+// Marks a promise as handled and silent to prevent unhandled rejection
+// tracking from triggering.
+void MarkPromiseAsHandled(const FunctionCallbackInfo<Value>& args) {
+  CHECK(args[0]->IsPromise());
+  Local<Promise> promise = args[0].As<Promise>();
+  promise->MarkAsHandled();
+  promise->MarkAsSilent();
+
+  // If the promise is already rejected, then it may have already been
+  // reported to the unhandled rejection handler. Marking it as handled
+  // above does not trigger the v8 callback that updates it's status.
+  // So to avoid the notification we call out manually.
+  if (promise->State() == v8::Promise::kRejected) {
+    Environment* env = Environment::GetCurrent(args);
+    Local<Function> callback = env->promise_reject_callback();
+    CHECK(!callback.IsEmpty());
+
+    Local<Value> type =
+        Number::New(env->isolate(), kPromiseHandlerAddedAfterReject);
+    Local<Value> vargs[] = {type, promise, Undefined(env->isolate())};
+
+    USE(callback->Call(
+        env->context(), Undefined(env->isolate()), arraysize(vargs), vargs));
+
+    // Note that if callback->Call throws here, we go ahead and let that
+    // propagate.
+  }
+}
+
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetPromiseDetails);
   registry->Register(GetProxyDetails);
@@ -482,6 +510,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(DefineLazyProperties);
   registry->Register(DefineLazyPropertiesGetter);
   registry->Register(ConstructSharedArrayBuffer);
+  registry->Register(MarkPromiseAsHandled);
 }
 
 void Initialize(Local<Object> target,
@@ -490,6 +519,25 @@ void Initialize(Local<Object> target,
                 void* priv) {
   Environment* env = Environment::GetCurrent(context);
   Isolate* isolate = env->isolate();
+
+  {
+    const Local<Object> prototype =
+        SharedArrayBuffer::New(isolate, 0)->GetPrototypeV2().As<Object>();
+    const Local<Object> descriptor =
+        prototype
+            ->GetOwnPropertyDescriptor(
+                context, FIXED_ONE_BYTE_STRING(isolate, "growable"))
+            .ToLocalChecked()
+            .As<Object>();
+    const Local<Value> getter =
+        descriptor->Get(context, env->get_string()).ToLocalChecked();
+    CHECK(getter->IsFunction());
+    target
+        ->Set(context,
+              FIXED_ONE_BYTE_STRING(isolate, "getSharedArrayBufferGrowable"),
+              getter)
+        .Check();
+  }
 
   {
     Local<ObjectTemplate> tmpl = ObjectTemplate::New(isolate);
@@ -587,6 +635,7 @@ void Initialize(Local<Object> target,
             target,
             "constructSharedArrayBuffer",
             ConstructSharedArrayBuffer);
+  SetMethod(context, target, "markPromiseAsHandled", MarkPromiseAsHandled);
 
   Local<String> should_abort_on_uncaught_toggle =
       FIXED_ONE_BYTE_STRING(env->isolate(), "shouldAbortOnUncaughtToggle");

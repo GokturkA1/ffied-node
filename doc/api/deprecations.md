@@ -273,7 +273,7 @@ in Node.js 6.0 because the method defaulted to using the non-recommended
 Node.js 8.0.0, calling `crypto.pbkdf2()` or `crypto.pbkdf2Sync()` with
 `digest` set to `undefined` will throw a `TypeError`.
 
-Beginning in Node.js v11.0.0, calling these functions with `digest` set to
+Beginning in Node.js 11.0.0, calling these functions with `digest` set to
 `null` would print a deprecation warning to align with the behavior when `digest`
 is `undefined`.
 
@@ -509,7 +509,7 @@ changes:
 
 Type: End-of-Life
 
-The `Server.connections` property was deprecated in Node.js v0.9.7 and has
+The `Server.connections` property was deprecated in Node.js 0.9.7 and has
 been removed. Please use the [`Server.getConnections()`][] method instead.
 
 ### DEP0021: `Server.listenFD`
@@ -744,6 +744,12 @@ Type: End-of-Life
 The `SlowBuffer` class has been removed. Please use
 [`Buffer.allocUnsafeSlow(size)`][] instead.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/slow-buffer-to-buffer-alloc-unsafe-slow)).
+
+```bash
+npx codemod@latest @nodejs/slow-buffer-to-buffer-alloc-unsafe-slow
+```
+
 ### DEP0031: `ecdh.setPublicKey()`
 
 <!-- YAML
@@ -768,6 +774,9 @@ the API is not useful.
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/65074
+    description: Runtime deprecation.
   - version:
     - v6.12.0
     - v4.8.6
@@ -778,15 +787,18 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Documentation-only
+Type: Runtime
 
-The [`domain`][] module is deprecated and should not be used.
+The [`domain`][] module is deprecated and should not be used. Loading the
+module emits a runtime deprecation warning.
 
 ### DEP0033: `EventEmitter.listenerCount()`
 
 <!-- YAML
 changes:
-  - version: REPLACEME
+  - version:
+     - v25.4.0
+     - v24.14.0
     pr-url: https://github.com/nodejs/node/pull/60214
     description: Deprecation revoked.
   - version:
@@ -802,7 +814,7 @@ changes:
 Type: Revoked
 
 The [`events.listenerCount(emitter, eventName)`][] API was deprecated, as it
-provided identical fuctionality to [`emitter.listenerCount(eventName)`][]. The
+provided identical functionality to [`emitter.listenerCount(eventName)`][]. The
 deprecation was revoked because this function has been repurposed to also
 accept {EventTarget} arguments.
 
@@ -924,6 +936,11 @@ The [`require.extensions`][] property is deprecated.
 
 <!-- YAML
 changes:
+  - version:
+    - v23.7.0
+    - v22.14.0
+    pr-url: https://github.com/nodejs/node/pull/56632
+    description: Application deprecation.
   - version: v21.0.0
     pr-url: https://github.com/nodejs/node/pull/47202
     description: Runtime deprecation.
@@ -935,7 +952,7 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Runtime
+Type: Application (non-`node_modules` code only)
 
 The [`punycode`][] module is deprecated. Please use a userland alternative
 instead.
@@ -1568,6 +1585,12 @@ The [`util._extend()`][] API is deprecated because it's an unmaintained
 legacy API that was exposed to user land by accident.
 Please use `target = Object.assign(target, source)` instead.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/util-extend-to-object-assign)):
+
+```bash
+npx codemod@latest @nodejs/util-extend-to-object-assign
+```
+
 ### DEP0061: `fs.SyncWriteStream`
 
 <!-- YAML
@@ -1611,7 +1634,7 @@ instead.
 
 <!-- YAML
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/60635
     description: End-of-Life.
   - version: v25.0.0
@@ -1660,6 +1683,12 @@ Type: End-of-Life
 
 The `tls.createSecurePair()` API was deprecated in documentation in Node.js
 0.11.3. Users should use `tls.Socket` instead.
+
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/tls-create-secure-pair-to-tls-socket)):
+
+```bash
+npx codemod @nodejs/tls-create-secure-pair-to-tls-socket
+```
 
 ### DEP0065: `repl.REPL_MODE_MAGIC` and `NODE_REPL_MODE=magic`
 
@@ -1714,6 +1743,12 @@ the public methods (e.g. `OutgoingMessage.prototype.getHeader()`,
 The `OutgoingMessage.prototype._headers` and
 `OutgoingMessage.prototype._headerNames` properties were never documented as
 officially supported properties.
+
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/http-outgoingmessage-headers)):
+
+```bash
+npx codemod@latest @nodejs/http-outgoingmessage-headers
+```
 
 ### DEP0067: `OutgoingMessage.prototype._renderHeaders`
 
@@ -2251,6 +2286,12 @@ Type: End-of-Life
 `timers.enroll()` has been removed. Please use the publicly documented
 [`setTimeout()`][] or [`setInterval()`][] instead.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/timers-deprecations)).
+
+```bash
+npx codemod @nodejs/timers-deprecations
+```
+
 ### DEP0096: `timers.unenroll()`
 
 <!-- YAML
@@ -2268,20 +2309,30 @@ Type: End-of-Life
 `timers.unenroll()` has been removed. Please use the publicly documented
 [`clearTimeout()`][] or [`clearInterval()`][] instead.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/timers-deprecations)).
+
+```bash
+npx codemod @nodejs/timers-deprecations
+```
+
 ### DEP0097: `MakeCallback` with `domain` property
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/61095
+    description: End-of-Life.
   - version: v10.0.0
     pr-url: https://github.com/nodejs/node/pull/17417
     description: Runtime deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-Users of `MakeCallback` that add the `domain` property to carry context,
-should start using the `async_context` variant of `MakeCallback` or
-`CallbackScope`, or the high-level `AsyncResource` class.
+The `domain` property on async resources and `MakeCallback` has been removed.
+The domain module now uses `AsyncLocalStorage` for context propagation instead
+of `async_hooks`. Accessing the `domain` property on `AsyncResource` will throw
+an error. Use `AsyncLocalStorage` instead for context propagation.
 
 ### DEP0098: AsyncHooks embedder `AsyncResource.emitBefore` and `AsyncResource.emitAfter` APIs
 
@@ -2343,10 +2394,10 @@ Type: End-of-Life
 
 This was never a documented feature.
 
-An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/createCredentials-to-createSecureContext)).
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/process-assert-to-node-assert)).
 
 ```bash
-npx codemod@latest @nodejs/createCredentials-to-createSecureContext
+npx codemod@latest @nodejs/process-assert-to-node-assert
 ```
 
 ### DEP0101: `--with-lttng`
@@ -2457,6 +2508,12 @@ It is recommended to derive a key using
 [`crypto.pbkdf2()`][] or [`crypto.scrypt()`][] with random salts and to use
 [`crypto.createCipheriv()`][] and [`crypto.createDecipheriv()`][] to obtain the
 [`Cipheriv`][] and [`Decipheriv`][] objects respectively.
+
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/crypto-createcipheriv-migration)):
+
+```bash
+npx codemod @nodejs/crypto-createcipheriv-migration
+```
 
 ### DEP0107: `tls.convertNPNProtocols()`
 
@@ -2641,10 +2698,14 @@ future release.
 <!-- YAML
 changes:
   - version:
+      - v24.0.0
+    pr-url: https://github.com/nodejs/node/pull/55017
+    description: DEP0169 covers also `url.format()` and `url.resolve()`.
+  - version:
       - v19.0.0
       - v18.13.0
     pr-url: https://github.com/nodejs/node/pull/44919
-    description: \`url.parse()` is deprecated again in DEP0169.
+    description: DEP0169 deprecates `url.parse()` again.
   - version:
       - v15.13.0
       - v14.17.0
@@ -2812,12 +2873,15 @@ This property is a reference to the instance itself.
 
 <!-- YAML
 changes:
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/60657
+    description: End-of-Life.
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/26245
     description: Runtime deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
 The `node:_stream_wrap` module is deprecated.
 
@@ -2840,6 +2904,12 @@ Please use the publicly documented [`timeout.refresh()`][] instead.
 If re-referencing the timeout is necessary, [`timeout.ref()`][] can be used
 with no performance impact since Node.js 10.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/timers-deprecations)).
+
+```bash
+npx codemod @nodejs/timers-deprecations
+```
+
 ### DEP0127: `timers._unrefActive()`
 
 <!-- YAML
@@ -2858,6 +2928,12 @@ The previously undocumented and "private" `timers._unrefActive()` has been remov
 Please use the publicly documented [`timeout.refresh()`][] instead.
 If unreferencing the timeout is necessary, [`timeout.unref()`][] can be used
 with no performance impact since Node.js 10.
+
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/timers-deprecations)).
+
+```bash
+npx codemod @nodejs/timers-deprecations
+```
 
 ### DEP0128: modules with an invalid `main` entry and an `index.js` file
 
@@ -3527,6 +3603,12 @@ Type: End-of-Life
 This error code was removed due to adding more confusion to
 the errors used for value type validation.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/err-invalid-callback)):
+
+```bash
+npx codemod @nodejs/err-invalid-callback
+```
+
 ### DEP0160: `process.on('multipleResolves', handler)`
 
 <!-- YAML
@@ -3755,6 +3837,9 @@ Type: Application (non-`node_modules` code only)
 have security implications. Use the [WHATWG URL API][] instead. CVEs are not
 issued for `url.parse()` vulnerabilities.
 
+Calling [`url.format(urlString)`][] or [`url.resolve()`][] invokes `url.parse()`
+internally, and is therefore also covered by this deprecation.
+
 ### DEP0170: Invalid port when using `url.parse()`
 
 <!-- YAML
@@ -3933,6 +4018,12 @@ Type: End-of-Life
 The `dirent.path` property has been removed due to its lack of consistency across
 release lines. Please use [`dirent.parentPath`][] instead.
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/dirent-path-to-parent-path)):
+
+```bash
+npx codemod@latest @nodejs/dirent-path-to-parent-path
+```
+
 ### DEP0179: `Hash` constructor
 
 <!-- YAML
@@ -3992,6 +4083,9 @@ Please use the [`crypto.createHmac()`][] method to create Hmac instances.
 
 <!-- YAML
 changes:
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/61084
+    description: End-of-Life.
   - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52552
     description: Runtime deprecation.
@@ -4000,20 +4094,23 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-Applications that intend to use authentication tags that are shorter than the
-default authentication tag length must set the `authTagLength` option of the
+For ciphers in GCM mode, the [`decipher.setAuthTag()`][] function used to accept
+authentication tags of any valid length (see also [DEP0090](#DEP0090)). This
+exception has been removed to better align with recommendations per
+[NIST SP 800-38D][], and applications that intend to use authentication tags
+that are shorter than the default authentication tag length (i.e., shorter than
+16 bytes for AES-GCM) must explicitly set the `authTagLength` option of the
 [`crypto.createDecipheriv()`][] function to the appropriate length.
-
-For ciphers in GCM mode, the [`decipher.setAuthTag()`][] function accepts
-authentication tags of any valid length (see [DEP0090](#DEP0090)). This behavior
-is deprecated to better align with recommendations per [NIST SP 800-38D][].
 
 ### DEP0183: OpenSSL engine-based APIs
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/63966
+    description: Runtime deprecation.
   - version:
     - v22.4.0
     - v20.16.0
@@ -4021,7 +4118,7 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Documentation-only
+Type: Runtime
 
 OpenSSL 3 has deprecated support for custom engines with a recommendation to
 switch to its new provider model. The `clientCertEngine` option for
@@ -4033,6 +4130,9 @@ and [`crypto.setEngine()`][] all depend on this functionality from OpenSSL.
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/64849
+    description: End-of-Life.
   - version: v24.0.0
     pr-url: https://github.com/nodejs/node/pull/55718
     description: Runtime deprecation.
@@ -4043,11 +4143,12 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-Instantiating classes without the `new` qualifier exported by the `node:zlib` module is deprecated.
-It is recommended to use the `new` qualifier instead. This applies to all Zlib classes, such as `Deflate`,
-`DeflateRaw`, `Gunzip`, `Inflate`, `InflateRaw`, `Unzip`, and `Zlib`.
+Instantiating classes without the `new` qualifier exported by the `node:zlib` module is no longer
+supported. The `new` qualifier must be used instead. This applies to all Zlib classes, such as
+`Deflate`, `DeflateRaw`, `Gunzip`, `Inflate`, `InflateRaw`, `Unzip`, `BrotliCompress`,
+`BrotliDecompress`, `ZstdCompress`, and `ZstdDecompress`.
 
 ### DEP0185: Instantiating `node:repl` classes without `new`
 
@@ -4131,7 +4232,7 @@ Type: Documentation-only
 `process.features.tls_alpn`, `process.features.tls_ocsp`, and `process.features.tls_sni` are
 deprecated, as their values are guaranteed to be identical to that of `process.features.tls`.
 
-### DEP0190: Passing `args` to `node:child_process` `execFile`/`spawn` with `shell` option `true`
+### DEP0190: Passing `args` to `node:child_process` `execFile`/`spawn` with `shell` option
 
 <!-- YAML
 changes:
@@ -4148,7 +4249,8 @@ changes:
 Type: Runtime
 
 When an `args` array is passed to [`child_process.execFile`][] or [`child_process.spawn`][] with the option
-`{ shell: true }`, the values are not escaped, only space-separated, which can lead to shell injection.
+`{ shell: true }` or `{ shell: '/path/to/shell' }`, the values are not escaped, only space-separated,
+which can lead to shell injection.
 
 ### DEP0191: `repl.builtinModules`
 
@@ -4179,6 +4281,9 @@ npx codemod@latest @nodejs/repl-builtin-modules
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/60658
+    description: End-of-Life.
   - version:
       - v24.2.0
       - v22.17.0
@@ -4187,7 +4292,7 @@ changes:
     description: Runtime deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
 The `node:_tls_common` and `node:_tls_wrap` modules are deprecated as they should be considered
 an internal nodejs implementation rather than a public facing API, use `node:tls` instead.
@@ -4196,6 +4301,9 @@ an internal nodejs implementation rather than a public facing API, use `node:tls
 
 <!-- YAML
 changes:
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/60657
+    description: End-of-Life.
   - version:
       - v24.2.0
       - v22.17.0
@@ -4204,7 +4312,7 @@ changes:
     description: Runtime deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
 The `node:_stream_duplex`, `node:_stream_passthrough`, `node:_stream_readable`, `node:_stream_transform`,
 `node:_stream_wrap` and `node:_stream_writable` modules are deprecated as they should be considered
@@ -4214,7 +4322,9 @@ an internal nodejs implementation rather than a public facing API, use `node:str
 
 <!-- YAML
 changes:
-  - version: v24.2.0
+  - version:
+     - v24.2.0
+     - v22.23.0
     pr-url: https://github.com/nodejs/node/pull/58293
     description: End-of-Life.
   - version:
@@ -4229,10 +4339,19 @@ Type: End-of-Life
 
 The support for priority signaling has been removed following its deprecation in the [RFC 9113][].
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/http2-priority-signaling)):
+
+```bash
+npx codemod@latest @nodejs/http2-priority-signaling
+```
+
 ### DEP0195: Instantiating `node:http` classes without `new`
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/64853
+    description: Runtime deprecation.
   - version:
       - v24.2.0
       - v22.17.0
@@ -4240,11 +4359,11 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Documentation-only
+Type: Runtime
 
 Instantiating classes without the `new` qualifier exported by the `node:http` module is deprecated.
 It is recommended to use the `new` qualifier instead. This applies to all http classes, such as
-`OutgoingMessage`, `IncomingMessage`, `ServerResponse` and `ClientRequest`.
+`OutgoingMessage`, `IncomingMessage`, `ServerResponse`, `ClientRequest`, `Server`, and `Agent`.
 
 An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/http-classes-with-new)):
 
@@ -4301,6 +4420,9 @@ npx codemod@latest @nodejs/types-is-native-error
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/64000
+    description: End-of-Life.
   - version: v25.0.0
     pr-url: https://github.com/nodejs/node/pull/59008
     description: Runtime deprecation.
@@ -4312,9 +4434,10 @@ changes:
     description: Documentation-only deprecation with support for `--pending-deprecation`.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-Creating SHAKE-128 and SHAKE-256 digests without an explicit `options.outputLength` is deprecated.
+Creating SHAKE-128 and SHAKE-256 digests without an explicit
+`options.outputLength` is no longer supported.
 
 ### DEP0199: `require('node:_http_*')`
 
@@ -4379,7 +4502,307 @@ import { opendir } from 'node:fs/promises';
 }
 ```
 
+### DEP0201: Passing `options.type` to `Duplex.toWeb()`
+
+<!-- YAML
+changes:
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/62173
+    description: Runtime deprecation.
+  - version:
+     - v25.7.0
+     - v24.15.0
+    pr-url: https://github.com/nodejs/node/pull/61632
+    description: Documentation-only deprecation.
+-->
+
+Type: Runtime
+
+Passing the `type` option to [`Duplex.toWeb()`][] is deprecated. To specify the
+type of the readable half of the constructed readable-writable pair, use the
+`readableType` option instead.
+
+### DEP0202: `Http1IncomingMessage` and `Http1ServerResponse` options of HTTP/2 servers
+
+<!-- YAML
+changes:
+  - version:
+     - v25.7.0
+     - v24.15.0
+    pr-url: https://github.com/nodejs/node/pull/61713
+    description: Documentation-only deprecation.
+-->
+
+Type: Documentation-only
+
+The `Http1IncomingMessage` and `Http1ServerResponse` options of
+[`http2.createServer()`][] and [`http2.createSecureServer()`][] are
+deprecated. Use `http1Options.IncomingMessage` and
+`http1Options.ServerResponse` instead.
+
+```cjs
+// Deprecated
+const server = http2.createSecureServer({
+  allowHTTP1: true,
+  Http1IncomingMessage: MyIncomingMessage,
+  Http1ServerResponse: MyServerResponse,
+});
+```
+
+```cjs
+// Use this instead
+const server = http2.createSecureServer({
+  allowHTTP1: true,
+  http1Options: {
+    IncomingMessage: MyIncomingMessage,
+    ServerResponse: MyServerResponse,
+  },
+});
+```
+
+### DEP0203: Passing `CryptoKey` to `node:crypto` APIs
+
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/63188
+    description: End-of-Life.
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/62453
+    description: Runtime deprecation.
+  - version:
+     - v25.9.0
+     - v24.15.0
+    pr-url: https://github.com/nodejs/node/pull/62321
+    description: Documentation-only deprecation.
+-->
+
+Type: End-of-Life
+
+Passing a [`CryptoKey`][] to `node:crypto` functions is no longer supported.
+
+### DEP0204: `KeyObject.from()` with non-extractable `CryptoKey`
+
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/63188
+    description: End-of-Life.
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/62453
+    description: Runtime deprecation.
+  - version:
+     - v25.9.0
+     - v24.15.0
+    pr-url: https://github.com/nodejs/node/pull/62321
+    description: Documentation-only deprecation.
+-->
+
+Type: End-of-Life
+
+Passing a non-extractable [`CryptoKey`][] to [`KeyObject.from()`][] is
+no longer supported.
+
+### DEP0205: `module.register()`
+
+<!-- YAML
+changes:
+  - version: v26.0.0
+    pr-url: https://github.com/nodejs/node/pull/62401
+    description: Runtime deprecation.
+  - version:
+     - v25.9.0
+     - v24.15.0
+    pr-url: https://github.com/nodejs/node/pull/62395
+    description: Documentation-only deprecation.
+-->
+
+Type: Runtime
+
+[`module.register()`][] is deprecated. Use [`module.registerHooks()`][]
+instead.
+
+The `module.register()` API provides off-thread async hooks for customizing ES modules;
+the `module.registerHooks()` API provides similar hooks that are synchronous, in-thread, and
+work for all types of modules.
+Supporting async hooks has proven to be complex, involving worker threads orchestration, and there are issues
+that have proven unresolvable. See [caveats of asynchronous customization hooks][]. Please migrate to
+`module.registerHooks()` as soon as possible as `module.register()` will be
+removed in a future version of Node.js.
+
+### DEP0206: Calling `digest()` on an already-finalized `Hmac` instance
+
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/63624
+    description: Runtime deprecation.
+  - version:
+    - v26.2.0
+    - v24.18.0
+    pr-url: https://github.com/nodejs/node/pull/63121
+    description: Documentation-only deprecation.
+-->
+
+Type: Runtime
+
+Calling `hmac.digest()` more than once returns an empty buffer instead of
+throwing an error. This behavior is inconsistent with `hash.digest()` and
+may lead to subtle bugs. Calling `hmac.digest()` on a finalized `Hmac` instance
+will throw an error in a future version.
+
+### DEP0207: `.aborted` property and `'aborted'` event in `node:http2`
+
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/63249
+    description: Documentation-only deprecation.
+-->
+
+Type: Documentation-only
+
+Use standard stream events and state checks instead. Read-side aborts
+(peer cancelled before sending `END_STREAM`) now surface as `'error'`
+with code `ERR_HTTP2_STREAM_ABORTED` (clean peer reset code) or
+`ERR_HTTP2_STREAM_ERROR` (non-clean code). Write-side aborts (peer
+cancelled while we still had writes in flight) are detectable from
+`'close'` by checking `writableFinished`. Parallels [DEP0156][] for
+`http`.
+
+```cjs
+// Deprecated
+server.on('stream', (stream) => {
+  stream.on('aborted', () => {
+    // Stream was closed while the writable was still open.
+  });
+});
+```
+
+```cjs
+// Use this instead
+server.on('stream', (stream) => {
+  // Read-side abort: peer cancelled before sending END_STREAM.
+  stream.on('error', (err) => {
+    if (err.code === 'ERR_HTTP2_STREAM_ABORTED' ||
+        err.code === 'ERR_HTTP2_STREAM_ERROR') {
+      // Peer cancelled the request mid-stream.
+    }
+  });
+  // Write-side abort: our response didn't fully send before close.
+  stream.on('close', () => {
+    if (!stream.writableFinished) {
+      // Writes were aborted (peer cancel, local destroy, etc.).
+    }
+  });
+});
+```
+
+The same patterns apply to the compatibility API (`req` / `res` on
+`http2.createServer((req, res) => …)`). On the read-side, errors on the
+underlying stream are emitted from `req`. On the write-side you can use
+`res.on('close', …)` to hear about client aborts by checking
+`res.writableFinished` to confirm whether the response was written
+successfully before the response closed.
+
+### DEP0208: `Server.prototype._listen2`
+
+<!-- YAML
+changes:
+  - version: v26.8.2
+    pr-url: https://github.com/nodejs/node/pull/64794
+    description: Runtime deprecation.
+-->
+
+Type: Runtime
+
+`net.Server.prototype._listen2` is an undocumented alias for an internal
+function that sets up the listening handle. It is kept only so that code
+replacing it keeps being called by [`server.listen()`][], and it will be
+removed in a future version of Node.js. Use [`server.listen()`][] instead of
+calling or overriding `_listen2`.
+
+### DEP0209: Using `AbortSignal` to dispose of resources
+
+<!-- YAML
+changes:
+  - version: v26.8.2
+    pr-url: https://github.com/nodejs/node/pull/64342
+    description: Documentation-only deprecation.
+-->
+
+Type: Documentation-only
+
+Using `AbortSignal` to destroy long-lived resources is deprecated. Prefer
+`using` for resource cleanup.
+
+`AbortSignal` is still a good fit for canceling actions, propagating
+cancellation from the outside, and timeouts.
+
+```js
+// Deprecated
+async function example() {
+  const ac = new AbortController();
+  const server = http.createServer(handler);
+  server.listen({ port: 3000, signal: ac.signal });
+
+  await doWork();
+  ac.abort();
+}
+```
+
+```js
+// Use this instead
+async function example() {
+  await using server = http.createServer(handler);
+  server.listen(3000);
+
+  await doWork();
+}
+```
+
+```js
+// Deprecated
+async function example() {
+  const ac = new AbortController();
+  const stream = addAbortSignal(ac.signal, fs.createReadStream(file));
+
+  await consume(stream);
+  ac.abort();
+}
+```
+
+```js
+// Use this instead
+async function example() {
+  await using stream = fs.createReadStream(file);
+
+  await consume(stream);
+}
+```
+
+```js
+// Deprecated
+async function example() {
+  const ac = new AbortController();
+  const child = spawn(command, args, { signal: ac.signal });
+
+  await doWork();
+  ac.abort();
+}
+```
+
+```js
+// Use this instead
+async function example() {
+  using child = spawn(command, args);
+
+  await doWork();
+}
+```
+
 [DEP0142]: #dep0142-repl_builtinlibs
+[DEP0156]: #dep0156-aborted-property-and-abort-aborted-event-in-http
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 [RFC 6066]: https://tools.ietf.org/html/rfc6066#section-3
 [RFC 8247 Section 2.4]: https://www.rfc-editor.org/rfc/rfc8247#section-2.4
@@ -4391,13 +4814,16 @@ import { opendir } from 'node:fs/promises';
 [`--pending-deprecation`]: cli.md#--pending-deprecation
 [`--throw-deprecation`]: cli.md#--throw-deprecation
 [`--unhandled-rejections`]: cli.md#--unhandled-rejectionsmode
-[`Buffer.allocUnsafeSlow(size)`]: buffer.md#static-method-bufferallocunsafeslowsize
+[`Buffer.allocUnsafeSlow(size)`]: buffer.md#static-method-bufferallocunsafeslowsize-alignment
 [`Buffer.from(array)`]: buffer.md#static-method-bufferfromarray
 [`Buffer.from(buffer)`]: buffer.md#static-method-bufferfrombuffer
 [`Buffer.isBuffer()`]: buffer.md#static-method-bufferisbufferobj
 [`Cipheriv`]: crypto.md#class-cipheriv
+[`CryptoKey`]: webcrypto.md#class-cryptokey
 [`Decipheriv`]: crypto.md#class-decipheriv
+[`Duplex.toWeb()`]: stream.md#streamduplextowebstreamduplex-options
 [`Error.isError`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/isError
+[`KeyObject.from()`]: crypto.md#static-method-keyobjectfromkey
 [`REPLServer.clearBufferedCommand()`]: repl.md#replserverclearbufferedcommand
 [`ReadStream.open()`]: fs.md#class-fsreadstream
 [`Server.getConnections()`]: net.md#servergetconnectionscallback
@@ -4457,6 +4883,8 @@ import { opendir } from 'node:fs/promises';
 [`http.ServerResponse`]: http.md#class-httpserverresponse
 [`http.get()`]: http.md#httpgetoptions-callback
 [`http.request()`]: http.md#httprequestoptions-callback
+[`http2.createSecureServer()`]: http2.md#http2createsecureserveroptions-onrequesthandler
+[`http2.createServer()`]: http2.md#http2createserveroptions-onrequesthandler
 [`https.get()`]: https.md#httpsgetoptions-callback
 [`https.request()`]: https.md#httpsrequestoptions-callback
 [`message.connection`]: http.md#messageconnection
@@ -4466,6 +4894,8 @@ import { opendir } from 'node:fs/promises';
 [`message.trailersDistinct`]: http.md#messagetrailersdistinct
 [`message.trailers`]: http.md#messagetrailers
 [`module.createRequire()`]: module.md#modulecreaterequirefilename
+[`module.register()`]: module.md#moduleregisterspecifier-parenturl-options
+[`module.registerHooks()`]: module.md#moduleregisterhooksoptions
 [`os.networkInterfaces()`]: os.md#osnetworkinterfaces
 [`os.tmpdir()`]: os.md#ostmpdir
 [`process.env`]: process.md#processenv
@@ -4488,6 +4918,7 @@ import { opendir } from 'node:fs/promises';
 [`response.writableEnded`]: http.md#responsewritableended
 [`response.writableFinished`]: http.md#responsewritablefinished
 [`script.createCachedData()`]: vm.md#scriptcreatecacheddata
+[`server.listen()`]: net.md#serverlisten
 [`setInterval()`]: timers.md#setintervalcallback-delay-args
 [`setTimeout()`]: timers.md#settimeoutcallback-delay-args
 [`socket.bufferSize`]: net.md#socketbuffersize
@@ -4500,6 +4931,7 @@ import { opendir } from 'node:fs/promises';
 [`tls.createSecureContext()`]: tls.md#tlscreatesecurecontextoptions
 [`tls.createServer()`]: tls.md#tlscreateserveroptions-secureconnectionlistener
 [`url.format()`]: url.md#urlformaturlobject
+[`url.format(urlString)`]: url.md#urlformaturlstring
 [`url.parse()`]: url.md#urlparseurlstring-parsequerystring-slashesdenotehost
 [`url.resolve()`]: url.md#urlresolvefrom-to
 [`util._extend()`]: util.md#util_extendtarget-source
@@ -4517,7 +4949,8 @@ import { opendir } from 'node:fs/promises';
 [`writable.writableLength`]: stream.md#writablewritablelength
 [`zlib.bytesWritten`]: zlib.md#zlibbyteswritten
 [alloc]: buffer.md#static-method-bufferallocsize-fill-encoding
-[alloc_unsafe_size]: buffer.md#static-method-bufferallocunsafesize
+[alloc_unsafe_size]: buffer.md#static-method-bufferallocunsafesize-alignment
+[caveats of asynchronous customization hooks]: module.md#caveats-of-asynchronous-customization-hooks
 [from_arraybuffer]: buffer.md#static-method-bufferfromarraybuffer-byteoffset-length
 [from_string_encoding]: buffer.md#static-method-bufferfromstring-encoding
 [legacy URL API]: url.md#legacy-url-api

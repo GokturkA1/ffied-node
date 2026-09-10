@@ -2,6 +2,7 @@
 #if HAVE_OPENSSL
 #include "crypto/crypto_util.h"
 #endif  // HAVE_OPENSSL
+#include "env.h"
 #include "env_properties.h"
 #include "node.h"
 #include "node_builtins.h"
@@ -113,13 +114,8 @@ MaybeLocal<Value> PrepareStackTraceCallback(Local<Context> context,
 
 void* NodeArrayBufferAllocator::Allocate(size_t size) {
   void* ret;
-  if (zero_fill_field_ || per_process::cli_options->zero_fill_all_buffers) {
-    COUNT_GENERIC_USAGE("NodeArrayBufferAllocator.Allocate.ZeroFilled");
-    ret = allocator_->Allocate(size);
-  } else {
-    COUNT_GENERIC_USAGE("NodeArrayBufferAllocator.Allocate.Uninitialized");
-    ret = allocator_->AllocateUninitialized(size);
-  }
+  COUNT_GENERIC_USAGE("NodeArrayBufferAllocator.Allocate.ZeroFilled");
+  ret = allocator_->Allocate(size);
   if (ret != nullptr) [[likely]] {
     total_mem_usage_.fetch_add(size, std::memory_order_relaxed);
   }
@@ -229,7 +225,8 @@ void SetIsolateCreateParamsForNode(Isolate::CreateParams* params) {
 #endif
 }
 
-void SetIsolateErrorHandlers(v8::Isolate* isolate, const IsolateSettings& s) {
+static void SetIsolateErrorHandlers(v8::Isolate* isolate,
+                                    const IsolateSettings& s) {
   if (s.flags & MESSAGE_LISTENER_WITH_ERROR_LEVEL)
     isolate->AddMessageListenerWithErrorLevel(
             errors::PerIsolateMessageListener,
@@ -272,13 +269,9 @@ void SetIsolateMiscHandlers(v8::Isolate* isolate, const IsolateSettings& s) {
   isolate->SetModifyCodeGenerationFromStringsCallback(
       modify_code_generation_from_strings_callback);
 
-  Mutex::ScopedLock lock(node::per_process::cli_options_mutex);
-  if (per_process::cli_options->get_per_isolate_options()
-          ->get_per_env_options()
-          ->experimental_fetch) {
-    isolate->SetWasmStreamingCallback(wasm_web_api::StartStreamingCompilation);
-  }
+  isolate->SetWasmStreamingCallback(wasm_web_api::StartStreamingCompilation);
 
+  Mutex::ScopedLock lock(node::per_process::cli_options_mutex);
   if (per_process::cli_options->get_per_isolate_options()
           ->experimental_shadow_realm) {
     isolate->SetHostCreateShadowRealmContextCallback(
@@ -358,16 +351,7 @@ Isolate* NewIsolate(Isolate::CreateParams* params,
 
   SetIsolateCreateParamsForNode(params);
   Isolate::Initialize(isolate, *params);
-
-  Isolate::Scope isolate_scope(isolate);
-
-  if (snapshot_data == nullptr) {
-    // If in deserialize mode, delay until after the deserialization is
-    // complete.
-    SetIsolateUpForNode(isolate, settings);
-  } else {
-    SetIsolateMiscHandlers(isolate, settings);
-  }
+  SetIsolateUpForNode(isolate, settings);
 
   return isolate;
 }
@@ -407,7 +391,11 @@ IsolateData* CreateIsolateData(
     ArrayBufferAllocator* allocator,
     const EmbedderSnapshotData* embedder_snapshot_data) {
   return IsolateData::CreateIsolateData(
-      isolate, loop, platform, allocator, embedder_snapshot_data);
+      isolate,
+      loop,
+      platform,
+      allocator,
+      SnapshotData::FromEmbedderWrapper(embedder_snapshot_data));
 }
 
 void FreeIsolateData(IsolateData* isolate_data) {
@@ -432,24 +420,6 @@ Environment* CreateEnvironment(
     const std::vector<std::string>& exec_args,
     EnvironmentFlags::Flags flags,
     ThreadId thread_id,
-    std::unique_ptr<InspectorParentHandle> inspector_parent_handle) {
-  return CreateEnvironment(isolate_data,
-                           context,
-                           args,
-                           exec_args,
-                           flags,
-                           thread_id,
-                           std::move(inspector_parent_handle),
-                           {});
-}
-
-Environment* CreateEnvironment(
-    IsolateData* isolate_data,
-    Local<Context> context,
-    const std::vector<std::string>& args,
-    const std::vector<std::string>& exec_args,
-    EnvironmentFlags::Flags flags,
-    ThreadId thread_id,
     std::unique_ptr<InspectorParentHandle> inspector_parent_handle,
     std::string_view thread_name) {
   Isolate* isolate = isolate_data->isolate();
@@ -459,6 +429,11 @@ Environment* CreateEnvironment(
 
   const bool use_snapshot = context.IsEmpty();
   const EnvSerializeInfo* env_snapshot_info = nullptr;
+  // A worker thread (its IsolateData knows its Worker) deserializes the same
+  // bootstrapped principal context the main thread uses and then has the
+  // worker-side bootstrap switches applied on top of it (they are written as
+  // overrides of the main-thread setup).
+  const bool for_worker = isolate_data->worker_context() != nullptr;
   if (use_snapshot) {
     CHECK_NOT_NULL(isolate_data->snapshot_data());
     env_snapshot_info = &isolate_data->snapshot_data()->env_info;
@@ -495,11 +470,29 @@ Environment* CreateEnvironment(
       FreeEnvironment(env);
       return nullptr;
     }
-    SetIsolateErrorHandlers(isolate, {});
   }
 
   Context::Scope context_scope(context);
   env->InitializeMainContext(context, env_snapshot_info);
+
+  if (use_snapshot && for_worker) {
+    // The deserialized context went through is_main_thread /
+    // does_own_process_state when the snapshot was built; the worker-side
+    // switches redefine exactly those pieces (stdio getters, signal wiring,
+    // process.abort/chdir/umask/..., debug helpers).
+    if (env->principal_realm()
+            ->ExecuteBootstrapper(
+                "internal/bootstrap/switches/is_not_main_thread")
+            .IsEmpty() ||
+        (!env->owns_process_state() &&
+         env->principal_realm()
+             ->ExecuteBootstrapper(
+                 "internal/bootstrap/switches/does_not_own_process_state")
+             .IsEmpty())) {
+      FreeEnvironment(env);
+      return nullptr;
+    }
+  }
 
 #if HAVE_INSPECTOR
   if (env->should_create_inspector()) {
@@ -577,7 +570,7 @@ NODE_EXTERN std::unique_ptr<InspectorParentHandle> GetInspectorParentHandle(
 }
 
 MaybeLocal<Value> LoadEnvironment(Environment* env,
-                                  StartExecutionCallback cb,
+                                  StartExecutionCallbackWithModule cb,
                                   EmbedderPreloadCallback preload) {
   env->InitializeLibuv();
   env->InitializeDiagnostics();
@@ -589,22 +582,149 @@ MaybeLocal<Value> LoadEnvironment(Environment* env,
   return StartExecution(env, cb);
 }
 
+struct StartExecutionCallbackInfoWithModule::Impl {
+  Environment* env = nullptr;
+  Local<Object> process_object;
+  Local<Function> native_require;
+  Local<Function> run_module;
+};
+
+StartExecutionCallbackInfoWithModule::StartExecutionCallbackInfoWithModule()
+    : impl_(std::make_unique<Impl>()) {}
+
+StartExecutionCallbackInfoWithModule::~StartExecutionCallbackInfoWithModule() =
+    default;
+
+StartExecutionCallbackInfoWithModule::StartExecutionCallbackInfoWithModule(
+    StartExecutionCallbackInfoWithModule&&) = default;
+
+StartExecutionCallbackInfoWithModule&
+StartExecutionCallbackInfoWithModule::operator=(
+    StartExecutionCallbackInfoWithModule&&) = default;
+
+Environment* StartExecutionCallbackInfoWithModule::env() const {
+  return impl_->env;
+}
+
+Local<Object> StartExecutionCallbackInfoWithModule::process_object() const {
+  return impl_->process_object;
+}
+
+Local<Function> StartExecutionCallbackInfoWithModule::native_require() const {
+  return impl_->native_require;
+}
+
+Local<Function> StartExecutionCallbackInfoWithModule::run_module() const {
+  return impl_->run_module;
+}
+
+void StartExecutionCallbackInfoWithModule::set_env(Environment* env) {
+  impl_->env = env;
+}
+
+void StartExecutionCallbackInfoWithModule::set_process_object(
+    Local<Object> process_object) {
+  impl_->process_object = process_object;
+}
+
+void StartExecutionCallbackInfoWithModule::set_native_require(
+    Local<Function> native_require) {
+  impl_->native_require = native_require;
+}
+
+void StartExecutionCallbackInfoWithModule::set_run_module(
+    Local<Function> run_module) {
+  impl_->run_module = run_module;
+}
+
+struct ModuleData::Impl {
+  std::string_view source;
+  ModuleFormat format = ModuleFormat::kCommonJS;
+  std::string_view resource_name;
+};
+
+ModuleData::ModuleData() : impl_(std::make_unique<Impl>()) {}
+
+ModuleData::~ModuleData() = default;
+
+ModuleData::ModuleData(ModuleData&&) = default;
+
+ModuleData& ModuleData::operator=(ModuleData&&) = default;
+
+void ModuleData::set_source(std::string_view source) {
+  impl_->source = source;
+}
+
+void ModuleData::set_format(ModuleFormat format) {
+  impl_->format = format;
+}
+
+void ModuleData::set_resource_name(std::string_view name) {
+  impl_->resource_name = name;
+}
+
+std::string_view ModuleData::source() const {
+  return impl_->source;
+}
+
+ModuleFormat ModuleData::format() const {
+  return impl_->format;
+}
+
+std::string_view ModuleData::resource_name() const {
+  return impl_->resource_name;
+}
+
+MaybeLocal<Value> LoadEnvironment(Environment* env,
+                                  StartExecutionCallback cb,
+                                  EmbedderPreloadCallback preload) {
+  if (!cb) {
+    return LoadEnvironment(
+        env, StartExecutionCallbackWithModule{}, std::move(preload));
+  }
+
+  return LoadEnvironment(
+      env,
+      [cb = std::move(cb)](const StartExecutionCallbackInfoWithModule& info)
+          -> MaybeLocal<Value> {
+        StartExecutionCallbackInfo legacy_info{
+            info.process_object(), info.native_require(), info.run_module()};
+        return cb(legacy_info);
+      },
+      std::move(preload));
+}
+
 MaybeLocal<Value> LoadEnvironment(Environment* env,
                                   std::string_view main_script_source_utf8,
                                   EmbedderPreloadCallback preload) {
+  ModuleData data;
+  data.set_source(main_script_source_utf8);
+  data.set_format(ModuleFormat::kCommonJS);
+  data.set_resource_name(env->exec_path());
+  return LoadEnvironment(env, &data, std::move(preload));
+}
+
+MaybeLocal<Value> LoadEnvironment(Environment* env,
+                                  const ModuleData* data,
+                                  EmbedderPreloadCallback preload) {
   // It could be empty when it's used by SEA to load an empty script.
-  CHECK_IMPLIES(main_script_source_utf8.size() > 0,
-                main_script_source_utf8.data());
+  CHECK_IMPLIES(data->source().size() > 0, data->source().data());
   return LoadEnvironment(
       env,
-      [&](const StartExecutionCallbackInfo& info) -> MaybeLocal<Value> {
-        Local<Value> main_script;
-        if (!ToV8Value(env->context(), main_script_source_utf8)
-                 .ToLocal(&main_script)) {
-          return {};
-        }
-        return info.run_cjs->Call(
-            env->context(), Null(env->isolate()), 1, &main_script);
+      [data](const StartExecutionCallbackInfoWithModule& info)
+          -> MaybeLocal<Value> {
+        Environment* env = info.env();
+        Local<Context> context = env->context();
+        Isolate* isolate = env->isolate();
+        Local<Value> main_script =
+            ToV8Value(context, data->source()).ToLocalChecked();
+        Local<Value> format =
+            v8::Integer::New(isolate, static_cast<int>(data->format()));
+        Local<Value> resource_name =
+            ToV8Value(context, data->resource_name()).ToLocalChecked();
+        Local<Value> args[] = {main_script, format, resource_name};
+        return info.run_module()->Call(
+            context, Null(isolate), arraysize(args), args);
       },
       std::move(preload));
 }
@@ -933,6 +1053,18 @@ Maybe<bool> InitializeContext(Local<Context> context) {
     return Nothing<bool>();
   }
   return Just(true);
+}
+
+void RegisterContext(Environment* env,
+                     v8::Local<v8::Context> context,
+                     std::string_view name,
+                     std::string_view origin) {
+  ContextInfo info{std::string(name), std::string(origin)};
+  env->AssignToContext(context, nullptr, info);
+}
+
+void UnregisterContext(Environment* env, v8::Local<v8::Context> context) {
+  env->UnassignFromContext(context);
 }
 
 uv_loop_t* GetCurrentEventLoop(Isolate* isolate) {

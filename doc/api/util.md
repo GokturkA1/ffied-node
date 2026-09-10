@@ -76,7 +76,9 @@ wrapped function rejects a `Promise` with a falsy value as a reason, the value
 is wrapped in an `Error` with the original value stored in a field named
 `reason`.
 
-```js
+```mjs
+import util from 'node:util';
+
 function fn() {
   return Promise.reject(null);
 }
@@ -88,6 +90,56 @@ callbackFunction((err, ret) => {
   err && Object.hasOwn(err, 'reason') && err.reason === null;  // true
 });
 ```
+
+```cjs
+const util = require('node:util');
+
+function fn() {
+  return Promise.reject(null);
+}
+const callbackFunction = util.callbackify(fn);
+
+callbackFunction((err, ret) => {
+  // When the Promise was rejected with `null` it is wrapped with an Error and
+  // the original value is stored in `reason`.
+  err && Object.hasOwn(err, 'reason') && err.reason === null;  // true
+});
+```
+
+## `util.convertProcessSignalToExitCode(signal)`
+
+<!-- YAML
+added:
+ - v25.4.0
+ - v24.14.0
+-->
+
+* `signal` {string} A signal name (e.g. `'SIGTERM'`)
+* Returns: {number} The exit code corresponding to `signal`
+
+The `util.convertProcessSignalToExitCode()` method converts a signal name to its
+corresponding POSIX exit code. Following the POSIX standard, the exit code
+for a process terminated by a signal is calculated as `128 + signal number`.
+
+If `signal` is not a valid signal name, then an error will be thrown. See
+[`signal(7)`][] for a list of valid signals.
+
+```mjs
+import { convertProcessSignalToExitCode } from 'node:util';
+
+console.log(convertProcessSignalToExitCode('SIGTERM')); // 143 (128 + 15)
+console.log(convertProcessSignalToExitCode('SIGKILL')); // 137 (128 + 9)
+```
+
+```cjs
+const { convertProcessSignalToExitCode } = require('node:util');
+
+console.log(convertProcessSignalToExitCode('SIGTERM')); // 143 (128 + 15)
+console.log(convertProcessSignalToExitCode('SIGKILL')); // 137 (128 + 9)
+```
+
+This is particularly useful when working with processes to determine
+the exit code based on the signal that terminated the process.
 
 ## `util.debuglog(section[, callback])`
 
@@ -230,7 +282,9 @@ logging when only using `util.debuglog().enabled`.
 <!-- YAML
 added: v0.8.0
 changes:
-  - version: v25.2.0
+  - version:
+      - v25.2.0
+      - v24.12.0
     pr-url: https://github.com/nodejs/node/pull/59982
     description: Add options object with modifyPrototype to conditionally
                  modify the prototype of the deprecated object.
@@ -452,7 +506,7 @@ corresponding argument. Supported specifiers are:
   `Symbol`.
 * `%i`: `parseInt(value, 10)` is used for all values except `BigInt` and
   `Symbol`.
-* `%f`: `parseFloat(value)` is used for all values expect `Symbol`.
+* `%f`: `parseFloat(value)` is used for all values except `Symbol`.
 * `%j`: JSON. Replaced with the string `'[Circular]'` if the argument contains
   circular references.
 * `%o`: `Object`. A string representation of an object with generic JavaScript
@@ -548,7 +602,7 @@ changes:
 
 > Stability: 1.1 - Active development
 
-* `frameCount` {number} Optional number of frames to capture as call site objects.
+* `frameCount` {integer} Optional number of frames to capture as call site objects.
   **Default:** `10`. Allowable range is between 1 and 200.
 * `options` {Object} Optional
   * `sourceMap` {boolean} Reconstruct the original location in the stacktrace from the source-map.
@@ -563,6 +617,9 @@ changes:
 
 Returns an array of call site objects containing the stack of
 the caller function.
+
+Unlike accessing an `error.stack`, the result returned from this API is not
+interfered with `Error.prepareStackTrace`.
 
 ```mjs
 import { getCallSites } from 'node:util';
@@ -640,8 +697,7 @@ anotherFunction();
 
 It is possible to reconstruct the original locations by setting the option `sourceMap` to `true`.
 If the source map is not available, the original location will be the same as the current location.
-When the `--enable-source-maps` flag is enabled, for example when using `--experimental-transform-types`,
-`sourceMap` will be true by default.
+When the `--enable-source-maps` flag is enabled,`sourceMap` will be true by default.
 
 ```ts
 import { getCallSites } from 'node:util';
@@ -1524,7 +1580,7 @@ symbol is [registered globally][global symbol registry] and can be
 accessed in any environment as `Symbol.for('nodejs.util.inspect.custom')`.
 
 Using this allows code to be written in a portable fashion, so that the custom
-inspect function is used in an Node.js environment and ignored in the browser.
+inspect function is used in a Node.js environment and ignored in the browser.
 The `util.inspect()` function itself is passed as third argument to the custom
 inspect function to allow further portability.
 
@@ -1634,6 +1690,17 @@ console.log(util.isDeepStrictEqual(foo, bar, true));
 
 See [`assert.deepStrictEqual()`][] for more information about deep strict
 equality.
+
+## `util.markPromiseAsHandled(promise)`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `promise` {promise} The promise to mark as handled
+
+Marks a promise as handled so that unhandled rejections are ignored and are not
+reported to the `'unhandledrejection'` event.
 
 ## Class: `util.MIMEType`
 
@@ -1839,6 +1906,20 @@ const myMIMES = [
 console.log(JSON.stringify(myMIMES));
 // Prints: ["image/png", "image/gif"]
 ```
+
+### `MIMEType.parse(string)`
+
+<!--
+added:
+ - v26.8.0
+ - v24.21.0
+-->
+
+* `string` {string} The input MIME to parse
+* Returns: {MIMEType|null}
+
+Attempts to parse the given `string` as a MIMEType. If the string cannot be
+parsed, `null` is returned.
 
 ## Class: `util.MIMEParams`
 
@@ -2493,6 +2574,11 @@ added:
   - v20.12.0
 changes:
   - version:
+     - v26.1.0
+     - v24.16.0
+    pr-url: https://github.com/nodejs/node/pull/61556
+    description: Add support for hexadecimal colors.
+  - version:
       - v24.2.0
       - v22.17.0
     pr-url: https://github.com/nodejs/node/pull/58437
@@ -2511,8 +2597,9 @@ changes:
 -->
 
 * `format` {string | Array} A text format or an Array
-  of text formats defined in `util.inspect.colors`.
-* `text` {string} The text to to be formatted.
+  of text formats defined in `util.inspect.colors`, or a hex color in `#RGB`
+  or `#RRGGBB` form.
+* `text` {string} The text to be formatted.
 * `options` {Object}
   * `validateStream` {boolean} When true, `stream` is checked to see if it can handle colors. **Default:** `true`.
   * `stream` {Stream} A stream that will be validated if it can be colored. **Default:** `process.stdout`.
@@ -2573,6 +2660,30 @@ console.log(
 ```
 
 The special format value `none` applies no additional styling to the text.
+
+In addition to predefined color names, `util.styleText()` supports hex color
+strings using ANSI TrueColor (24-bit) escape sequences. Hex colors can be
+specified in either 3-digit (`#RGB`) or 6-digit (`#RRGGBB`) format:
+
+```mjs
+import { styleText } from 'node:util';
+
+// 6-digit hex color
+console.log(styleText('#ff5733', 'Orange text'));
+
+// 3-digit hex color (shorthand)
+console.log(styleText('#f00', 'Red text'));
+```
+
+```cjs
+const { styleText } = require('node:util');
+
+// 6-digit hex color
+console.log(styleText('#ff5733', 'Orange text'));
+
+// 3-digit hex color (shorthand)
+console.log(styleText('#f00', 'Red text'));
+```
 
 The full list of formats can be found in [modifiers][].
 
@@ -3419,7 +3530,7 @@ deprecated: v24.2.0
 
 > Stability: 0 - Deprecated: Use [`Error.isError`][] instead.
 
-**Note:** As of Node.js v24, `Error.isError()` is currently slower than `util.types.isNativeError()`.
+**Note:** As of Node.js 24, `Error.isError()` is currently slower than `util.types.isNativeError()`.
 If performance is critical, consider benchmarking both in your environment.
 
 * `value` {any}
@@ -3770,6 +3881,12 @@ Node.js modules. The community found and used it anyway.
 It is deprecated and should not be used in new code. JavaScript comes with very
 similar built-in functionality through [`Object.assign()`][].
 
+An automated migration is available ([source](https://github.com/nodejs/userland-migrations/tree/main/recipes/util-extend-to-object-assign)):
+
+```bash
+npx codemod@latest @nodejs/util-extend-to-object-assign
+```
+
 ### `util.isArray(object)`
 
 <!-- YAML
@@ -3825,7 +3942,8 @@ npx codemod@latest @nodejs/util-is
 [`mime.toString()`]: #mimetostring
 [`mimeParams.entries()`]: #mimeparamsentries
 [`napi_create_external()`]: n-api.md#napi_create_external
-[`target` and `handler`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy#Terminology
+[`signal(7)`]: https://man7.org/linux/man-pages/man7/signal.7.html
+[`target` and `handler`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy#terminology
 [`tty.hasColors()`]: tty.md#writestreamhascolorscount-env
 [`util.diff()`]: #utildiffactual-expected
 [`util.format()`]: #utilformatformat-args
@@ -3836,7 +3954,7 @@ npx codemod@latest @nodejs/util-is
 [`util.types.isSharedArrayBuffer()`]: #utiltypesissharedarraybuffervalue
 [async function]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function
 [built-in `Error` type]: https://tc39.es/ecma262/#sec-error-objects
-[compare function]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#Parameters
+[compare function]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#parameters
 [constructor]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/constructor
 [default sort]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
 [global symbol registry]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/for

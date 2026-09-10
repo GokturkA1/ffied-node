@@ -39,15 +39,13 @@ property, which is an array of `[key, value, key2, value2, ...]`. For
 example, the previous message header object might have a `rawHeaders`
 list like the following:
 
-<!-- eslint-disable @stylistic/js/semi -->
-
-```js
-[ 'ConTent-Length', '123456',
-  'content-LENGTH', '123',
-  'content-type', 'text/plain',
-  'CONNECTION', 'keep-alive',
-  'Host', 'example.com',
-  'accepT', '*/*' ]
+```json
+[ "ConTent-Length", "123456",
+  "content-LENGTH", "123",
+  "content-type", "text/plain",
+  "CONNECTION", "keep-alive",
+  "Host", "example.com",
+  "accepT", "*/*" ]
 ```
 
 ## Class: `http.Agent`
@@ -71,6 +69,14 @@ that host and port. Servers may also refuse to allow multiple requests
 over the same connection, in which case the connection will have to be
 remade for every request and cannot be pooled. The `Agent` will still make
 the requests to that server, but each one will occur over a new connection.
+
+### Response ordering with connection reuse
+
+On a reused HTTP/1.1 keep-alive connection, responses are associated with
+requests by their order on that connection. HTTP/1.1 keep-alive does not provide
+per-request response attribution beyond that ordering. Applications that require
+per-request connection isolation can use a separate `Agent`, disable keep-alive,
+or pass `agent: false`.
 
 When a connection is closed by the client or the server, it is removed
 from the pool. Any unused sockets in the pool will be unrefed so as not
@@ -110,6 +116,8 @@ http.get({
   // Do stuff with response
 });
 ```
+
+Use `agent: false` to avoid connection reuse for a request.
 
 ### `new Agent([options])`
 
@@ -957,7 +965,8 @@ changes:
 
 Destroy the request. Optionally emit an `'error'` event,
 and emit a `'close'` event. Calling this will cause remaining data
-in the response to be dropped and the socket to be destroyed.
+in the response to be dropped, and the socket to be destroyed if used,
+or returned to the corresponding Agent pool otherwise if possible.
 
 See [`writable.destroy()`][] for further details.
 
@@ -1118,7 +1127,7 @@ const hasContentType = request.hasHeader('content-type');
 
 ### `request.maxHeadersCount`
 
-* Type: {number} **Default:** `2000`
+* Type: {number} **Default:** `1000`
 
 Limits maximum response headers count. If set to 0, no limit will be applied.
 
@@ -1180,7 +1189,7 @@ added:
  - v12.16.0
 -->
 
-* Type: {boolean} Whether the request is send through a reused socket.
+* Type: {boolean} Whether the request is sent through a reused socket.
 
 When sending request through a keep-alive enabled agent, the underlying socket
 might be reused. But if server closes connection at unfortunate time, client
@@ -1517,7 +1526,7 @@ changes:
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/25605
     description: The default behavior will return a 431 Request Header
-                 Fields Too Large if a HPE_HEADER_OVERFLOW error occurs.
+                 Fields Too Large if an HPE_HEADER_OVERFLOW error occurs.
   - version: v9.4.0
     pr-url: https://github.com/nodejs/node/pull/17672
     description: The `rawPacket` is the current buffer that just parsed. Adding
@@ -1543,8 +1552,8 @@ This event is guaranteed to be passed an instance of the {net.Socket} class,
 a subclass of {stream.Duplex}, unless the user specifies a socket
 type other than {net.Socket}.
 
-Default behavior is to try close the socket with a HTTP '400 Bad Request',
-or a HTTP '431 Request Header Fields Too Large' in the case of a
+Default behavior is to try close the socket with an HTTP '400 Bad Request',
+or an HTTP '431 Request Header Fields Too Large' in the case of an
 [`HPE_HEADER_OVERFLOW`][] error. If the socket is not writable or headers
 of the current attached [`http.ServerResponse`][] has been sent, it is
 immediately destroyed.
@@ -1690,7 +1699,7 @@ per connection (in the case of HTTP Keep-Alive connections).
 <!-- YAML
 added: v0.1.94
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/60016
     description: Request bodies are no longer exposed raw (unparsed) on the
                  socket argument. Instead, if a body is received, the stream
@@ -1905,7 +1914,7 @@ added: v5.7.0
 added: v0.7.0
 -->
 
-* Type: {number} **Default:** `2000`
+* Type: {number} **Default:** `1000`
 
 Limits maximum incoming headers count. If set to 0, no limit will be applied.
 
@@ -1998,9 +2007,13 @@ value only affects new connections to the server, not any existing connections.
 
 <!-- YAML
 added: v8.0.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/62782
+    description: the default value for `http.Server.keepAliveTimeout` is changed from 5 to 65 seconds.
 -->
 
-* Type: {number} Timeout in milliseconds. **Default:** `5000` (5 seconds).
+* Type: {number} Timeout in milliseconds. **Default:** `65000` (65 seconds).
 
 The number of milliseconds of inactivity a server needs to wait for additional
 incoming data, after it has finished writing the last response, before a socket
@@ -2319,8 +2332,8 @@ added: v0.7.5
 When true, the Date header will be automatically generated and sent in
 the response if it is not already present in the headers. Defaults to true.
 
-This should only be disabled for testing; HTTP requires the Date header
-in responses.
+This should only be disabled for testing; the Date header is required in
+most HTTP responses (see [RFC 9110 Section 6.6.1][] for details).
 
 ### `response.setHeader(name, value)`
 
@@ -2697,13 +2710,44 @@ been transmitted are equal or not.
 Attempting to set a header field name or value that contains invalid characters
 will result in a [`TypeError`][] being thrown.
 
+### `response.writeInformation(statusCode[, headers][, callback])`
+
+<!-- YAML
+added:
+  - v26.2.0
+  - v24.18.0
+-->
+
+* `statusCode` {number} An HTTP 1xx informational status code, between `100`
+  and `199` inclusive, excluding `101` (Switching Protocols) which is only
+  available through the [`'upgrade'`][] event.
+* `headers` {Object|Array} An optional set of headers to send with the
+  informational response. Accepts the same shapes as
+  [`response.writeHead()`][].
+* `callback` {Function} Optional, called once the message has been written
+  to the socket.
+
+Sends an arbitrary HTTP/1.1 1xx informational response to the client. This
+is a generic equivalent of [`response.writeContinue()`][],
+[`response.writeProcessing()`][] and [`response.writeEarlyHints()`][], and
+can be called multiple times before the final response. After the final
+response headers have been sent (via [`response.writeHead()`][] or an
+implicit header), calling this method throws `ERR_HTTP_HEADERS_SENT`.
+
+Clients receive these responses via the [`'information'`][information event]
+event on `http.ClientRequest`.
+
+```js
+response.writeInformation(110, { 'X-Progress': '50%' });
+```
+
 ### `response.writeProcessing()`
 
 <!-- YAML
 added: v10.0.0
 -->
 
-Sends a HTTP/1.1 102 Processing message to the client, indicating that
+Sends an HTTP/1.1 102 Processing message to the client, indicating that
 the request body should be sent.
 
 ## Class: `http.IncomingMessage`
@@ -2863,6 +2907,9 @@ The request/response headers object.
 
 Key-value pairs of header names and values. Header names are lower-cased.
 
+The object has a null prototype and should not be accessed using the `in`
+operator.
+
 ```js
 // Prints something like:
 //
@@ -2899,6 +2946,9 @@ added:
 
 Similar to [`message.headers`][], but there is no join logic and the values are
 always arrays of strings, even for headers received just once.
+
+The object has a null prototype and should not be accessed using the `in`
+operator.
 
 ```js
 // Prints something like:
@@ -2989,6 +3039,62 @@ added: v0.5.9
 
 Calls `message.socket.setTimeout(msecs, callback)`.
 
+### `message.signal`
+
+<!-- YAML
+added:
+ - v26.1.0
+ - v24.16.0
+changes:
+  - version:
+     - v26.7.0
+     - v24.20.0
+    pr-url: https://github.com/nodejs/node/pull/64392
+    description: The signal is no longer aborted after the message
+                 completes normally.
+-->
+
+* Type: {AbortSignal}
+
+An {AbortSignal} that is aborted when the message is destroyed before
+completion or when its underlying socket closes before request handling or
+response reading completes.
+The signal is created lazily on first access — no {AbortController} is allocated
+for requests that never use this property.
+
+This is useful for cancelling downstream asynchronous work such as database
+queries or `fetch` calls when a client disconnects mid-request.
+
+```mjs
+import http from 'node:http';
+
+http.createServer(async (req, res) => {
+  try {
+    const data = await fetch('https://example.com/api', { signal: req.signal });
+    res.end(JSON.stringify(await data.json()));
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    res.statusCode = 500;
+    res.end('Internal Server Error');
+  }
+}).listen(3000);
+```
+
+```cjs
+const http = require('node:http');
+
+http.createServer(async (req, res) => {
+  try {
+    const data = await fetch('https://example.com/api', { signal: req.signal });
+    res.end(JSON.stringify(await data.json()));
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    res.statusCode = 500;
+    res.end('Internal Server Error');
+  }
+}).listen(3000);
+```
+
 ### `message.socket`
 
 <!-- YAML
@@ -3041,6 +3147,9 @@ added: v0.3.0
 
 The request/response trailers object. Only populated at the `'end'` event.
 
+The object has a null prototype and should not be accessed using the `in`
+operator.
+
 ### `message.trailersDistinct`
 
 <!-- YAML
@@ -3054,6 +3163,9 @@ added:
 Similar to [`message.trailers`][], but there is no join logic and the values are
 always arrays of strings, even for headers received just once.
 Only populated at the `'end'` event.
+
+The object has a null prototype and should not be accessed using the `in`
+operator.
 
 ### `message.url`
 
@@ -3589,7 +3701,14 @@ Found'`.
 <!-- YAML
 added: v0.1.13
 changes:
-  - version: v25.1.0
+  - version:
+     - v26.3.0
+     - v24.19.0
+    pr-url: https://github.com/nodejs/node/pull/61597
+    description: The `httpValidation` option is supported now.
+  - version:
+      - v25.1.0
+      - v24.12.0
     pr-url: https://github.com/nodejs/node/pull/59778
     description: Add optimizeEmptyRequests option.
   - version:
@@ -3643,7 +3762,17 @@ changes:
     `readableHighWaterMark` and `writableHighWaterMark`. This affects
     `highWaterMark` property of both `IncomingMessage` and `ServerResponse`.
     **Default:** See [`stream.getDefaultHighWaterMark()`][].
-  * `insecureHTTPParser` {boolean} If set to `true`, it will use a HTTP parser
+  * `httpValidation` {string} Controls HTTP header value validation strictness
+    for incoming requests. Accepted values are:
+    * `'strict'`: Strictest validation; rejects any non-ASCII or control
+      characters in header values.
+    * `'relaxed'`: Allows a limited set of non-ASCII characters in header
+      values, aligning with the
+      [Fetch specification](https://fetch.spec.whatwg.org/).
+    * `'insecure'`: Disables all header value validation (equivalent to
+      `insecureHTTPParser: true`).
+      Cannot be used together with `insecureHTTPParser`. **Default:** `'strict'`.
+  * `insecureHTTPParser` {boolean} If set to `true`, it will use an HTTP parser
     with leniency flags enabled. Using the insecure parser should be avoided.
     See [`--insecure-http-parser`][] for more information.
     **Default:** `false`.
@@ -3657,7 +3786,7 @@ changes:
     **Default:** `false`.
   * `keepAlive` {boolean} If set to `true`, it enables keep-alive functionality
     on the socket immediately after a new incoming connection is received,
-    similarly on what is done in \[`socket.setKeepAlive([enable][, initialDelay])`]\[`socket.setKeepAlive(enable, initialDelay)`].
+    similarly on what is done in [`socket.setKeepAlive()`][].
     **Default:** `false`.
   * `keepAliveInitialDelay` {number} If set to a positive number, it sets the
     initial delay before the first keepalive probe is sent on an idle socket.
@@ -3666,7 +3795,7 @@ changes:
     needs to wait for additional incoming data, after it has finished writing
     the last response, before a socket will be destroyed.
     See [`server.keepAliveTimeout`][] for more information.
-    **Default:** `5000`.
+    **Default:** `65000`.
   * `maxHeaderSize` {number} Optionally overrides the value of
     [`--max-http-header-size`][] for requests received by this server, i.e.
     the maximum length of request headers in bytes.
@@ -3900,6 +4029,11 @@ This can be overridden for servers and client requests by passing the
 added: v0.3.6
 changes:
   - version:
+     - v26.3.0
+     - v24.19.0
+    pr-url: https://github.com/nodejs/node/pull/61597
+    description: The `httpValidation` option is supported now.
+  - version:
       - v16.7.0
       - v14.18.0
     pr-url: https://github.com/nodejs/node/pull/39310
@@ -3954,7 +4088,17 @@ changes:
     request to. **Default:** `'localhost'`.
   * `hostname` {string} Alias for `host`. To support [`url.parse()`][],
     `hostname` will be used if both `host` and `hostname` are specified.
-  * `insecureHTTPParser` {boolean} If set to `true`, it will use a HTTP parser
+  * `httpValidation` {string} Controls HTTP header value validation strictness
+    for outgoing requests. Accepted values are:
+    * `'strict'`: Strictest validation; rejects any non-ASCII or control
+      characters in header values.
+    * `'relaxed'`: Allows a limited set of non-ASCII characters in header
+      values, aligning with the
+      [Fetch specification](https://fetch.spec.whatwg.org/).
+    * `'insecure'`: Disables all header value validation (equivalent to
+      `insecureHTTPParser: true`).
+      Cannot be used together with `insecureHTTPParser`. **Default:** `'strict'`.
+  * `insecureHTTPParser` {boolean} If set to `true`, it will use an HTTP parser
     with leniency flags enabled. Using the insecure parser should be avoided.
     See [`--insecure-http-parser`][] for more information.
     **Default:** `false`
@@ -3975,6 +4119,18 @@ changes:
     E.G. `'/index.html?page=12'`. An exception is thrown when the request path
     contains illegal characters. Currently, only spaces are rejected but that
     may change in the future. **Default:** `'/'`.
+    The content in `path` is sent as the [request target][] in the HTTP 1.1 message.
+    When `path` is an absolute URL, this means the request target in the message in [absolute form][].
+    If the receiving server is a proxy, the server typically forwards the request to the
+    destination specified in the request target, and ignores the `Host` header.
+    The user needs to make sure that `path`, `host` and the Host headers conform to the
+    requirement of the [request target][] in the HTTP specification.
+    When the receiving server is known to be a proxy because the request is routed through
+    [Built-in Proxy Support][], `http.request` will additionally perform a best-effort
+    check to see that the `host` option or `Host` in `headers` agrees with the authority
+    in `path` during the initial construction of the request. It gives up rewriting the
+    request target for proxying and throws an error if they don't match at request
+    construction time, though there won't be checks for later header mutations done by the user.
   * `port` {number} Port of remote server. **Default:** `defaultPort` if set,
     else `80`.
   * `protocol` {string} Protocol to use. **Default:** `'http:'`.
@@ -4361,6 +4517,33 @@ added:
 
 Set the maximum number of idle HTTP parsers.
 
+## `http.setGlobalProxyFromEnv([proxyEnv])`
+
+<!-- YAML
+added:
+  - v25.4.0
+  - v24.14.0
+-->
+
+* `proxyEnv` {Object} An object containing proxy configuration. This accepts the
+  same options as the `proxyEnv` option accepted by [`Agent`][]. **Default:**
+  `process.env`.
+* Returns: {Function} A function that restores the original agent and dispatcher
+  settings to the state before this `http.setGlobalProxyFromEnv()` is invoked.
+
+Dynamically resets the global configurations to enable built-in proxy support for
+`fetch()` and `http.request()`/`https.request()` at runtime, as an alternative
+to using the `--use-env-proxy` flag or `NODE_USE_ENV_PROXY` environment variable.
+It can also be used to override settings configured from the environment variables.
+
+As this function resets the global configurations, any previously configured
+`http.globalAgent`, `https.globalAgent` or undici global dispatcher would be
+overridden after this function is invoked. It's recommended to invoke it before any
+requests are made and avoid invoking it in the middle of any requests.
+
+See [Built-in Proxy Support][] for details on proxy URL formats and `NO_PROXY`
+syntax.
+
 ## Class: `WebSocket`
 
 <!-- YAML
@@ -4383,6 +4566,9 @@ added:
 When Node.js creates the global agent, if the `NODE_USE_ENV_PROXY` environment variable is
 set to `1` or `--use-env-proxy` is enabled, the global agent will be constructed
 with `proxyEnv: process.env`, enabling proxy support based on the environment variables.
+
+To enable proxy support dynamically and globally, use [`http.setGlobalProxyFromEnv()`][].
+
 Custom agents can also be created with proxy support by passing a
 `proxyEnv` option when constructing the agent. The value can be `process.env`
 if they just want to inherit the configuration from the environment variables,
@@ -4399,6 +4585,22 @@ support.
   `no_proxy` takes precedence.
 
 If the request is made to a Unix domain socket, the proxy settings will be ignored.
+
+### Proxy security considerations
+
+Built-in proxy support routes outbound requests through an HTTP(S) proxy, often
+because a firewall requires one to access external networks. It is not an
+anonymity or traffic-hiding feature and does not attempt to hide traffic from
+the proxy, the local network, network operators, or authorities that govern the
+deployment.
+
+Configure only proxies that are trusted and authorized for the deployment. A
+proxy can observe connection metadata; for plain HTTP requests, or when TLS is
+terminated or intercepted by the proxy, it can also observe request and response
+contents. Node.js does not support treating an untrusted proxy as a privacy
+boundary. Deployment operators are responsible for controlling proxy
+configuration and for meeting deployment-specific network policy and legal
+requirements.
 
 ### Proxy URL Format
 
@@ -4438,6 +4640,86 @@ Or the `--use-env-proxy` flag.
 HTTP_PROXY=http://proxy.example.com:8080 NO_PROXY=localhost,127.0.0.1 node --use-env-proxy client.js
 ```
 
+To enable proxy support dynamically and globally with `process.env` (the default option of `http.setGlobalProxyFromEnv()`):
+
+```cjs
+const http = require('node:http');
+
+// Reads proxy-related environment variables from process.env
+const restore = http.setGlobalProxyFromEnv();
+
+// Subsequent requests will use the configured proxies from environment variables
+http.get('http://www.example.com', (res) => {
+  // This request will be proxied if HTTP_PROXY or http_proxy is set
+});
+
+fetch('https://www.example.com', (res) => {
+  // This request will be proxied if HTTPS_PROXY or https_proxy is set
+});
+
+// To restore the original global agent and dispatcher settings, call the returned function.
+// restore();
+```
+
+```mjs
+import http from 'node:http';
+
+// Reads proxy-related environment variables from process.env
+http.setGlobalProxyFromEnv();
+
+// Subsequent requests will use the configured proxies from environment variables
+http.get('http://www.example.com', (res) => {
+  // This request will be proxied if HTTP_PROXY or http_proxy is set
+});
+
+fetch('https://www.example.com', (res) => {
+  // This request will be proxied if HTTPS_PROXY or https_proxy is set
+});
+
+// To restore the original global agent and dispatcher settings, call the returned function.
+// restore();
+```
+
+To enable proxy support dynamically and globally with custom settings:
+
+```cjs
+const http = require('node:http');
+
+const restore = http.setGlobalProxyFromEnv({
+  http_proxy: 'http://proxy.example.com:8080',
+  https_proxy: 'https://proxy.example.com:8443',
+  no_proxy: 'localhost,127.0.0.1,.internal.example.com',
+});
+
+// Subsequent requests will use the configured proxies
+http.get('http://www.example.com', (res) => {
+  // This request will be proxied through proxy.example.com:8080
+});
+
+fetch('https://www.example.com', (res) => {
+  // This request will be proxied through proxy.example.com:8443
+});
+```
+
+```mjs
+import http from 'node:http';
+
+http.setGlobalProxyFromEnv({
+  http_proxy: 'http://proxy.example.com:8080',
+  https_proxy: 'https://proxy.example.com:8443',
+  no_proxy: 'localhost,127.0.0.1,.internal.example.com',
+});
+
+// Subsequent requests will use the configured proxies
+http.get('http://www.example.com', (res) => {
+  // This request will be proxied through proxy.example.com:8080
+});
+
+fetch('https://www.example.com', (res) => {
+  // This request will be proxied through proxy.example.com:8443
+});
+```
+
 To create a custom agent with built-in proxy support:
 
 ```cjs
@@ -4471,6 +4753,7 @@ const agent2 = new http.Agent({ proxyEnv: process.env });
 
 [Built-in Proxy Support]: #built-in-proxy-support
 [RFC 8187]: https://www.rfc-editor.org/rfc/rfc8187.txt
+[RFC 9110 Section 6.6.1]: https://www.rfc-editor.org/rfc/rfc9110#section-6.6.1
 [`'ERR_HTTP_CONTENT_LENGTH_MISMATCH'`]: errors.md#err_http_content_length_mismatch
 [`'checkContinue'`]: #event-checkcontinue
 [`'finish'`]: #event-finish
@@ -4501,6 +4784,7 @@ const agent2 = new http.Agent({ proxyEnv: process.env });
 [`http.get()`]: #httpgetoptions-callback
 [`http.globalAgent`]: #httpglobalagent
 [`http.request()`]: #httprequestoptions-callback
+[`http.setGlobalProxyFromEnv()`]: #httpsetglobalproxyfromenvproxyenv
 [`message.headers`]: #messageheaders
 [`message.rawHeaders`]: #messagerawheaders
 [`message.socket`]: #messagesocket
@@ -4536,7 +4820,9 @@ const agent2 = new http.Agent({ proxyEnv: process.env });
 [`response.write()`]: #responsewritechunk-encoding-callback
 [`response.write(data, encoding)`]: #responsewritechunk-encoding-callback
 [`response.writeContinue()`]: #responsewritecontinue
+[`response.writeEarlyHints()`]: #responsewriteearlyhintshints-callback
 [`response.writeHead()`]: #responsewriteheadstatuscode-statusmessage-headers
+[`response.writeProcessing()`]: #responsewriteprocessing
 [`server.close()`]: #serverclosecallback
 [`server.headersTimeout`]: #serverheaderstimeout
 [`server.keepAliveTimeoutBuffer`]: #serverkeepalivetimeoutbuffer
@@ -4546,7 +4832,7 @@ const agent2 = new http.Agent({ proxyEnv: process.env });
 [`server.timeout`]: #servertimeout
 [`setHeader(name, value)`]: #requestsetheadername-value
 [`socket.connect()`]: net.md#socketconnectoptions-connectlistener
-[`socket.setKeepAlive()`]: net.md#socketsetkeepaliveenable-initialdelay
+[`socket.setKeepAlive()`]: net.md#socketsetkeepalive
 [`socket.setNoDelay()`]: net.md#socketsetnodelaynodelay
 [`socket.setTimeout()`]: net.md#socketsettimeouttimeout-callback
 [`socket.unref()`]: net.md#socketunref
@@ -4557,4 +4843,7 @@ const agent2 = new http.Agent({ proxyEnv: process.env });
 [`writable.destroyed`]: stream.md#writabledestroyed
 [`writable.uncork()`]: stream.md#writableuncork
 [`writable.write()`]: stream.md#writablewritechunk-encoding-callback
-[initial delay]: net.md#socketsetkeepaliveenable-initialdelay
+[absolute form]: https://datatracker.ietf.org/doc/html/rfc9112#section-3.2.2
+[information event]: #event-information
+[initial delay]: net.md#socketsetkeepaliveenable-initialdelay-interval-count
+[request target]: https://datatracker.ietf.org/doc/html/rfc9112#section-3.2

@@ -20,9 +20,16 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
+
 const common = require('../common');
+const { isBoringSSL } = require('../common/crypto');
 if (!common.hasCrypto)
   common.skip('missing crypto');
+
+if (isBoringSSL) {
+  require('../common/boringssl').testTls13SessionTicketSemanticsDiffer();
+  return;
+}
 
 const assert = require('assert');
 const tls = require('tls');

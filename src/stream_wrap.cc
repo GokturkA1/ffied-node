@@ -72,7 +72,8 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
 
   Local<FunctionTemplate> sw =
       NewFunctionTemplate(isolate, IsConstructCallCallback);
-  sw->InstanceTemplate()->SetInternalFieldCount(StreamReq::kInternalFieldCount);
+  sw->InstanceTemplate()->SetInternalFieldCount(
+      ShutdownWrap::kInternalFieldCount);
 
   // we need to set handle and callback to null,
   // so that those fields are created and functions
@@ -93,8 +94,21 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
 
   Local<FunctionTemplate> ww =
       FunctionTemplate::New(isolate, IsConstructCallCallback);
-  ww->InstanceTemplate()->SetInternalFieldCount(
-      StreamReq::kInternalFieldCount);
+  ww->InstanceTemplate()->SetInternalFieldCount(WriteWrap::kInternalFieldCount);
+  // Pre-create the fields that JS attaches to write requests, so that they
+  // are in-object properties and the object shape stays monomorphic.
+  ww->InstanceTemplate()->Set(env->oncomplete_string(), v8::Null(isolate));
+  ww->InstanceTemplate()->Set(FIXED_ONE_BYTE_STRING(isolate, "callback"),
+                              v8::Null(isolate));
+  ww->InstanceTemplate()->Set(env->handle_string(), v8::Null(isolate));
+  ww->InstanceTemplate()->Set(FIXED_ONE_BYTE_STRING(isolate, "async"),
+                              v8::False(isolate));
+  ww->InstanceTemplate()->Set(FIXED_ONE_BYTE_STRING(isolate, "bytes"),
+                              v8::Integer::New(isolate, 0));
+  ww->InstanceTemplate()->Set(env->buffer_string(), v8::Null(isolate));
+  // Slot for a completion that fires before JS attaches `oncomplete`; see
+  // ReportWritesToJSStreamListener::OnStreamAfterReqFinished().
+  ww->InstanceTemplate()->Set(env->write_status_string(), v8::Null(isolate));
   ww->Inherit(AsyncWrap::GetConstructorTemplate(env));
   SetConstructorFunction(context, target, "WriteWrap", ww);
   env->set_write_wrap_template(ww->InstanceTemplate());
@@ -103,6 +117,7 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
   NODE_DEFINE_CONSTANT(target, kArrayBufferOffset);
   NODE_DEFINE_CONSTANT(target, kBytesWritten);
   NODE_DEFINE_CONSTANT(target, kLastWriteWasAsync);
+  NODE_DEFINE_CONSTANT(target, kLastWriteErr);
   target
       ->Set(context,
             FIXED_ONE_BYTE_STRING(isolate, "streamBaseState"),
@@ -141,7 +156,7 @@ Local<FunctionTemplate> LibuvStreamWrap::GetConstructorTemplate(
     tmpl->SetClassName(FIXED_ONE_BYTE_STRING(isolate, "LibuvStreamWrap"));
     tmpl->Inherit(HandleWrap::GetConstructorTemplate(env));
     tmpl->InstanceTemplate()->SetInternalFieldCount(
-        StreamBase::kInternalFieldCount);
+        LibuvStreamWrap::kInternalFieldCount);
     Local<FunctionTemplate> get_write_queue_size =
         FunctionTemplate::New(isolate,
                               GetWriteQueueSize,
@@ -227,12 +242,10 @@ void LibuvStreamWrap::OnUvAlloc(size_t suggested_size, uv_buf_t* buf) {
 }
 
 template <class WrapType>
+  requires(std::derived_from<WrapType, LibuvStreamWrap> ||
+           std::derived_from<WrapType, UDPWrap>)
 static MaybeLocal<Object> AcceptHandle(Environment* env,
                                        LibuvStreamWrap* parent) {
-  static_assert(std::is_base_of<LibuvStreamWrap, WrapType>::value ||
-                std::is_base_of<UDPWrap, WrapType>::value,
-                "Can only accept stream handles");
-
   EscapableHandleScope scope(env->isolate());
   Local<Object> wrap_obj;
 

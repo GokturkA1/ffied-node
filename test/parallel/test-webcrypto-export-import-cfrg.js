@@ -8,7 +8,9 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasFIPS, isBoringSSL } = require('../common/crypto');
 const { subtle } = globalThis.crypto;
+const rejectsXCurves = hasFIPS(3, 5);
 
 const keyData = {
   'Ed25519': {
@@ -94,7 +96,7 @@ const testVectors = [
   },
 ];
 
-if (!process.features.openssl_is_boringssl) {
+if (!isBoringSSL) {
   testVectors.push(
     {
       name: 'Ed448',
@@ -355,7 +357,7 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
         { name },
         extractable,
         publicUsages),
-      { message: 'JWK "crv" Parameter and algorithm name mismatch' });
+      { message: crv ? 'JWK "crv" Parameter and algorithm name mismatch' : 'Invalid keyData' });
 
     await assert.rejects(
       subtle.importKey(
@@ -364,7 +366,7 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
         { name },
         extractable,
         privateUsages),
-      { message: 'JWK "crv" Parameter and algorithm name mismatch' });
+      { message: crv ? 'JWK "crv" Parameter and algorithm name mismatch' : 'Invalid keyData' });
   }
 
   await assert.rejects(
@@ -389,9 +391,10 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
 async function testImportRaw({ name, publicUsages }) {
   const jwk = keyData[name].jwk;
 
+  const rawKeyData = Buffer.from(jwk.x, 'base64url');
   const publicKey = await subtle.importKey(
     'raw',
-    Buffer.from(jwk.x, 'base64url'),
+    rawKeyData,
     { name },
     true, publicUsages);
 
@@ -400,6 +403,10 @@ async function testImportRaw({ name, publicUsages }) {
   assert.strictEqual(publicKey.algorithm.name, name);
   assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
   assert.strictEqual(publicKey.usages, publicKey.usages);
+
+  // Test raw export round-trip
+  const exported = await subtle.exportKey('raw', publicKey);
+  assert.deepStrictEqual(Buffer.from(exported), rawKeyData);
 }
 
 (async function() {
@@ -408,11 +415,56 @@ async function testImportRaw({ name, publicUsages }) {
     for (const extractable of [true, false]) {
       tests.push(testImportSpki(vector, extractable));
       tests.push(testImportPkcs8(vector, extractable));
-      tests.push(testImportJwk(vector, extractable));
+      if (rejectsXCurves && vector.name.startsWith('X')) {
+        tests.push(assert.rejects(
+          testImportJwk(vector, extractable),
+          { name: 'DataError' }));
+      } else {
+        tests.push(testImportJwk(vector, extractable));
+      }
     }
-    tests.push(testImportRaw(vector));
+    if (rejectsXCurves && vector.name.startsWith('X')) {
+      tests.push(assert.rejects(testImportRaw(vector), { name: 'DataError' }));
+    } else {
+      tests.push(testImportRaw(vector));
+    }
   }
   await Promise.all(tests);
+})().then(common.mustCall());
+
+// JWK key usage validation precedes `key_ops` validation.
+(async function() {
+  for (const { name, publicUsages, privateUsages } of testVectors) {
+    const jwk = keyData[name].jwk;
+    const publicJwk = {
+      kty: jwk.kty,
+      crv: jwk.crv,
+      x: jwk.x,
+    };
+    const isKeyAgreement = name.startsWith('X');
+    const invalidUsage = isKeyAgreement ?
+      privateUsages[0] : publicUsages[0];
+    const invalidJwk = isKeyAgreement ? publicJwk : jwk;
+
+    await assert.rejects(
+      subtle.importKey(
+        'jwk',
+        { ...invalidJwk, key_ops: [invalidUsage, invalidUsage] },
+        { name },
+        true,
+        [invalidUsage]),
+      { name: 'SyntaxError', message: /Unsupported key usage/ });
+
+    const validUsage = privateUsages[0];
+    await assert.rejects(
+      subtle.importKey(
+        'jwk',
+        { ...jwk, key_ops: [validUsage, validUsage] },
+        { name },
+        true,
+        [validUsage]),
+      { name: 'DataError', message: 'Duplicate key operation' });
+  }
 })().then(common.mustCall());
 
 {
@@ -423,7 +475,7 @@ async function testImportRaw({ name, publicUsages }) {
 
   for (const [name, publicUsages, privateUsages] of [
     ['Ed25519', ['verify'], ['sign']],
-    ['X448', [], ['deriveBits']],
+    ['X25519', [], ['deriveBits']],
   ]) {
     assert.rejects(subtle.importKey(
       'spki',

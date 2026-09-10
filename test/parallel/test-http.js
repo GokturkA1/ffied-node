@@ -27,7 +27,7 @@ const url = require('url');
 
 const expectedRequests = ['/hello', '/there', '/world'];
 
-const server = http.Server(common.mustCall((req, res) => {
+const server = new http.Server(common.mustCall((req, res) => {
   assert.strictEqual(expectedRequests.shift(), req.url);
 
   switch (req.url) {
@@ -46,7 +46,7 @@ const server = http.Server(common.mustCall((req, res) => {
       assert.strictEqual(req.headers.cookie, 'abc=123; def=456; ghi=789');
       break;
     default:
-      assert(false, `Unexpected request for ${req.url}`);
+      assert.fail(`Unexpected request for ${req.url}`);
   }
 
   if (expectedRequests.length === 0)

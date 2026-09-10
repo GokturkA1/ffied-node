@@ -21,6 +21,14 @@ The objects listed here are specific to Node.js. There are [built-in objects][]
 that are part of the JavaScript language itself, which are also globally
 accessible.
 
+## `__dirname`
+
+This variable may appear to be global but is not. See [`__dirname`][].
+
+## `__filename`
+
+This variable may appear to be global but is not. See [`__filename`][].
+
 ## Class: `AbortController`
 
 <!-- YAML
@@ -77,7 +85,7 @@ added:
 
 * Type: {AbortSignal}
 
-### Class: `AbortSignal`
+## Class: `AbortSignal`
 
 <!-- YAML
 added:
@@ -90,7 +98,7 @@ added:
 The `AbortSignal` is used to notify observers when the
 `abortController.abort()` method is called.
 
-#### Static method: `AbortSignal.abort([reason])`
+### Static method: `AbortSignal.abort([reason])`
 
 <!-- YAML
 added:
@@ -109,7 +117,7 @@ changes:
 
 Returns a new already aborted `AbortSignal`.
 
-#### Static method: `AbortSignal.timeout(delay)`
+### Static method: `AbortSignal.timeout(delay)`
 
 <!-- YAML
 added:
@@ -122,7 +130,7 @@ added:
 
 Returns a new `AbortSignal` which will be aborted in `delay` milliseconds.
 
-#### Static method: `AbortSignal.any(signals)`
+### Static method: `AbortSignal.any(signals)`
 
 <!-- YAML
 added:
@@ -136,7 +144,7 @@ Returns a new `AbortSignal` which will be aborted if any of the provided
 signals are aborted. Its [`abortSignal.reason`][] will be set to whichever
 one of the `signals` caused it to be aborted.
 
-#### Event: `'abort'`
+### Event: `'abort'`
 
 <!-- YAML
 added:
@@ -173,7 +181,7 @@ listener, use the `once()` method) to ensure that the event listener is
 removed as soon as the `'abort'` event is handled. Failure to do so may
 result in memory leaks.
 
-#### `abortSignal.aborted`
+### `abortSignal.aborted`
 
 <!-- YAML
 added:
@@ -181,9 +189,11 @@ added:
   - v14.17.0
 -->
 
-* Type: {boolean} True after the `AbortController` has been aborted.
+* Type: {boolean}
 
-#### `abortSignal.onabort`
+True after the `AbortController` has been aborted.
+
+### `abortSignal.onabort`
 
 <!-- YAML
 added:
@@ -196,7 +206,7 @@ added:
 An optional callback function that may be set by user code to be notified
 when the `abortController.abort()` function has been called.
 
-#### `abortSignal.reason`
+### `abortSignal.reason`
 
 <!-- YAML
 added:
@@ -214,7 +224,7 @@ ac.abort(new Error('boom!'));
 console.log(ac.signal.reason);  // Error: boom!
 ```
 
-#### `abortSignal.throwIfAborted()`
+### `abortSignal.throwIfAborted()`
 
 <!-- YAML
 added:
@@ -223,46 +233,6 @@ added:
 -->
 
 If `abortSignal.aborted` is `true`, throws `abortSignal.reason`.
-
-## Class: `Blob`
-
-<!-- YAML
-added: v18.0.0
--->
-
-See {Blob}.
-
-## Class: `Buffer`
-
-<!-- YAML
-added: v0.1.103
--->
-
-* Type: {Function}
-
-Used to handle binary data. See the [buffer section][].
-
-## Class: `ByteLengthQueuingStrategy`
-
-<!-- YAML
-added: v18.0.0
-changes:
- - version:
-    - v23.11.0
-    - v22.15.0
-   pr-url: https://github.com/nodejs/node/pull/57510
-   description: Marking the API stable.
--->
-
-A browser-compatible implementation of [`ByteLengthQueuingStrategy`][].
-
-## `__dirname`
-
-This variable may appear to be global but is not. See [`__dirname`][].
-
-## `__filename`
-
-This variable may appear to be global but is not. See [`__filename`][].
 
 ## `atob(data)`
 
@@ -279,6 +249,14 @@ An automated migration is available ([source](https://github.com/nodejs/userland
 ```bash
 npx codemod@latest @nodejs/buffer-atob-btoa
 ```
+
+## Class: `Blob`
+
+<!-- YAML
+added: v18.0.0
+-->
+
+See {Blob}.
 
 ## Class: `BroadcastChannel`
 
@@ -303,6 +281,30 @@ An automated migration is available ([source](https://github.com/nodejs/userland
 ```bash
 npx codemod@latest @nodejs/buffer-atob-btoa
 ```
+
+## Class: `Buffer`
+
+<!-- YAML
+added: v0.1.103
+-->
+
+* Type: {Function}
+
+Used to handle binary data. See the [buffer section][].
+
+## Class: `ByteLengthQueuingStrategy`
+
+<!-- YAML
+added: v18.0.0
+changes:
+ - version:
+    - v23.11.0
+    - v22.15.0
+   pr-url: https://github.com/nodejs/node/pull/57510
+   description: Marking the API stable.
+-->
+
+A browser-compatible implementation of [`ByteLengthQueuingStrategy`][].
 
 ## `clearImmediate(immediateObject)`
 
@@ -332,10 +334,13 @@ added: v0.0.1
 
 <!-- YAML
 added: v23.0.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/65284
+    description: No longer disableable with the `--no-experimental-websocket` CLI flag.
 -->
 
-A browser-compatible implementation of {CloseEvent}. Disable this API
-with the [`--no-experimental-websocket`][] CLI flag.
+A browser-compatible implementation of {CloseEvent}.
 
 ## Class: `CompressionStream`
 
@@ -476,6 +481,14 @@ changes:
 
 A browser-compatible implementation of [`DecompressionStream`][].
 
+## Class: `DOMException`
+
+<!-- YAML
+added: v17.0.0
+-->
+
+The WHATWG {DOMException} class.
+
 ## `ErrorEvent`
 
 <!-- YAML
@@ -561,7 +574,7 @@ in your Node.js process reading the `process.versions.undici` property.
 
 You can use a custom dispatcher to dispatch requests passing it in fetch's options object.
 The dispatcher must be compatible with `undici`'s
-[`Dispatcher` class](https://undici.nodejs.org/#/docs/api/Dispatcher.md).
+[`Dispatcher` class](https://undici.nodejs.org/api/Dispatcher).
 
 ```js
 fetch(url, { dispatcher: new MyAgent() });
@@ -580,10 +593,10 @@ setGlobalDispatcher(new MyAgent());
 
 The following globals are available to use with `fetch`:
 
-* [`FormData`](https://nodejs.org/api/globals.html#class-formdata)
-* [`Headers`](https://nodejs.org/api/globals.html#class-headers)
-* [`Request`](https://nodejs.org/api/globals.html#request)
-* [`Response`](https://nodejs.org/api/globals.html#response).
+* [`FormData`][]
+* [`Headers`][]
+* [`Request`][]
+* [`Response`][]
 
 ## Class: `File`
 
@@ -651,7 +664,7 @@ A browser-compatible implementation of {Headers}.
 <!-- YAML
 added: v22.4.0
 changes:
-  - version: REPLACEME
+  - version: v26.0.0
     pr-url: https://github.com/nodejs/node/pull/60351
     description: Accessing the `localStorage` global without providing
                  `--localstorage-file` now throws a `DOMException`, for
@@ -767,7 +780,7 @@ console.log(`The preferred language of the Node.js instance has the tag '${navig
 added: v21.2.0
 -->
 
-* Type: {Array<string>}
+* Type: {string\[]}
 
 The `navigator.languages` read-only property returns an array of strings
 representing the preferred languages of the Node.js instance.
@@ -779,36 +792,6 @@ The fallback value on builds without ICU is `['en-US']`.
 
 ```js
 console.log(`The preferred languages are '${navigator.languages}'`);
-```
-
-### `navigator.platform`
-
-<!-- YAML
-added: v21.2.0
--->
-
-* Type: {string}
-
-The `navigator.platform` read-only property returns a string identifying the
-platform on which the Node.js instance is running.
-
-```js
-console.log(`This process is running on ${navigator.platform}`);
-```
-
-### `navigator.userAgent`
-
-<!-- YAML
-added: v21.1.0
--->
-
-* Type: {string}
-
-The `navigator.userAgent` read-only property returns user agent
-consisting of the runtime name and major version number.
-
-```js
-console.log(`The user-agent is ${navigator.userAgent}`); // Prints "Node.js/21"
 ```
 
 ### `navigator.locks`
@@ -860,6 +843,44 @@ navigator.locks.request('shared_resource', { mode: 'shared' }, async (lock) => {
 
 See [`worker_threads.locks`][] for detailed API documentation.
 
+### `navigator.platform`
+
+<!-- YAML
+added: v21.2.0
+-->
+
+* Type: {string}
+
+The `navigator.platform` read-only property returns a string identifying the
+platform on which the Node.js instance is running.
+
+```js
+console.log(`This process is running on ${navigator.platform}`);
+```
+
+### `navigator.userAgent`
+
+<!-- YAML
+added: v21.1.0
+-->
+
+* Type: {string}
+
+The `navigator.userAgent` read-only property returns user agent
+consisting of the runtime name and major version number.
+
+```js
+console.log(`The user-agent is ${navigator.userAgent}`); // Prints "Node.js/21"
+```
+
+## `performance`
+
+<!-- YAML
+added: v16.0.0
+-->
+
+The [`perf_hooks.performance`][] object.
+
 ## Class: `PerformanceEntry`
 
 <!-- YAML
@@ -910,14 +931,6 @@ added: v19.0.0
 The `PerformanceResourceTiming` class. See [`PerformanceResourceTiming`][] for
 more details.
 
-## `performance`
-
-<!-- YAML
-added: v16.0.0
--->
-
-The [`perf_hooks.performance`][] object.
-
 ## `process`
 
 <!-- YAML
@@ -965,6 +978,14 @@ DataHandler.prototype.load = async function load(key) {
   this.emit('load', data);
 };
 ```
+
+## Class: `QuotaExceededError`
+
+<!-- YAML
+added: v26.0.0
+-->
+
+The WHATWG {QuotaExceededError} class. Extends {DOMException}.
 
 ## Class: `ReadableByteStreamController`
 
@@ -1050,6 +1071,24 @@ changes:
 
 A browser-compatible implementation of [`ReadableStreamDefaultReader`][].
 
+## Class: `Request`
+
+<!-- YAML
+added:
+  - v17.5.0
+  - v16.15.0
+changes:
+  - version:
+    - v21.0.0
+    pr-url: https://github.com/nodejs/node/pull/45684
+    description: No longer experimental.
+  - version: v18.0.0
+    pr-url: https://github.com/nodejs/node/pull/41811
+    description: No longer behind `--experimental-fetch` CLI flag.
+-->
+
+A browser-compatible implementation of {Request}.
+
 ## `require()`
 
 This variable may appear to be global but is not. See [`require()`][].
@@ -1071,24 +1110,6 @@ changes:
 -->
 
 A browser-compatible implementation of {Response}.
-
-## Class: `Request`
-
-<!-- YAML
-added:
-  - v17.5.0
-  - v16.15.0
-changes:
-  - version:
-    - v21.0.0
-    pr-url: https://github.com/nodejs/node/pull/45684
-    description: No longer experimental.
-  - version: v18.0.0
-    pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-fetch` CLI flag.
--->
-
-A browser-compatible implementation of {Request}.
 
 ## `sessionStorage`
 
@@ -1163,14 +1184,6 @@ changes:
 A browser-compatible implementation of {SubtleCrypto}. This global is available
 only if the Node.js binary was compiled with including support for the
 `node:crypto` module.
-
-## Class: `DOMException`
-
-<!-- YAML
-added: v17.0.0
--->
-
-The WHATWG {DOMException} class.
 
 ## Class: `TextDecoder`
 
@@ -1289,6 +1302,9 @@ added:
   - v21.0.0
   - v20.10.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/65284
+    description: No longer disableable with the `--no-experimental-websocket` CLI flag.
   - version: v22.4.0
     pr-url: https://github.com/nodejs/node/pull/53352
     description: No longer experimental.
@@ -1297,8 +1313,110 @@ changes:
     description: No longer behind `--experimental-websocket` CLI flag.
 -->
 
-A browser-compatible implementation of {WebSocket}. Disable this API
-with the [`--no-experimental-websocket`][] CLI flag.
+A browser-compatible implementation of {WebSocket}.
+
+## Class: `Worker`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental. Enable this API with the
+> [`--experimental-web-worker`][] CLI flag.
+
+A mostly browser-compatible implementation of Web Workers of the [HTML Standard][],
+implemented on top of [`node:worker_threads`][]. Threads created with it
+are given the {DedicatedWorkerGlobalScope} API (`self`,
+`name`, `location`, `navigator`, `postMessage()`, `close()`, and
+`importScripts()`), in addition to the usual Node.js globals, such as `process`.
+
+```js
+// worker.js
+addEventListener('message', (event) => {
+  postMessage(`${event.data} from ${name}!`);
+});
+```
+
+```js
+// main.js
+const worker = new Worker('./worker.js', { name: 'greeter' });
+
+worker.addEventListener('message', (event) => {
+  console.log(event.data); // Prints: Hello from greeter!
+  worker.terminate();
+});
+
+worker.postMessage('Hello');
+```
+
+Because their lifetime and sharing model depend on origins and
+browsing contexts, Node.js does not currently implement `SharedWorker`.
+
+### Loading worker scripts
+
+Worker scripts are read synchronously from the local file system or from
+memory rather than fetched over the network, which changes which URLs are
+accepted and how failures are reported:
+
+* `new Worker()` and `importScripts()` accept only `file:`, `data:`, and
+  `blob:` URLs. Any other scheme makes `new Worker()` throw a
+  `NotSupportedError` and `importScripts()` throw a `NetworkError`.
+* A script that cannot be read makes `importScripts()` throw a `NetworkError`;
+  for `new Worker()` it fires an `error` event at the `Worker` object.
+* Redirects, the `nosniff` check, and HTTP MIME type validation do not apply.
+  MIME types are validated only for `data:` and `blob:` URLs. The
+  `credentials` option is validated for API compatibility but has no effect,
+  since no network request is made.
+* On the main thread, relative script URLs are resolved against the current
+  working directory, because there is no document base URL. Within a worker
+  they are resolved against the worker's own URL (as is done in the spec).
+* For `blob:` URLs, the script must be held in memory, so blobs backed by a file,
+  such as those returned by [`fs.openAsBlob()`][], cannot be used.
+
+### Differences from the HTML Standard
+
+Besides script loading, mentioned above:
+
+* Node.js has no origin model, so same-origin and cross-origin distinctions do
+  not exist and `location.origin` is `'null'` for every supported scheme.
+* `close()` terminates the worker immediately instead of following the
+  specification's "closing flag" algorithm, so code remaining in the current
+  task after `close()` is not executed.
+* The worker global is the normal Node.js global object with
+  `DedicatedWorkerGlobalScope` inserted into its prototype chain, rather than
+  a fresh global created from the interface. Node.js globals such as
+  `process`, `Buffer`, and `require()` remain available to worker scripts.
+* `ErrorEvent`s dispatched at `Worker` instances include `message` and
+  `error`, but `filename`, `lineno`, and `colno` are always `''`, `0`, and
+  `0`. An uncaught exception terminates the worker thread, and an unhandled
+  `error` event is not propagated further: it neither reaches the parent's
+  global scope nor affects the exit code of the process.
+* The following {WorkerGlobalScope} events are never dispatched, although
+  their handler properties exist: `languagechange`, `online`, and `offline`,
+  since these concepts do not exist in Node.js; `rejectionhandled` and
+  `unhandledrejection`, since Node.js exposes the equivalent does not
+  implement the `PromiseRejectionEvent` interface or the per-rejection
+  `preventDefault()` behavior required by the HTML Standard.
+
+### Web Workers and `node:worker_threads`
+
+Every Web Worker is backed by a [`node:worker_threads`][] {Worker}, so the
+two APIs share their threading, structured clone, and transfer semantics.
+Inside a worker, \[`worker_threads.parentPort`]\[] is the port behind
+`self.postMessage()` and the worker's `message` events, `isMainThread` is
+`false`, and `workerData` is `undefined`.
+
+Web Workers, like `node:worker_threads` workers, keep the event loop alive by
+default. In Node.js, Web Workers implement the [Refable protocol][], and can be
+ref'd and unref'd using `process.ref(worker)` and `process.unref(worker)`.
+
+As a rule of thumb, use [`node:worker_threads`][] directly when a program
+needs `workerData`, a custom `env` or `execArgv`, resource limits, stdio
+redirection, the `'online'` and `'exit'` events, or `worker.threadId`;
+`Worker` accepts only the `name`, `type`, and `credentials` options and,
+per the specification, its `terminate()` returns `undefined`, rather than
+a promise. Threads started through [`node:worker_threads`][] are ordinary
+Node.js threads and do not get the worker global scope APIs.
 
 ## Class: `WritableStream`
 
@@ -1345,19 +1463,23 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [CommonJS module]: modules.md
 [CommonJS modules]: modules.md
 [ECMAScript module]: esm.md
+[HTML Standard]: https://html.spec.whatwg.org/multipage/workers.html
 [Navigator API]: https://html.spec.whatwg.org/multipage/system-state.html#the-navigator-object
 [RFC 5646]: https://www.rfc-editor.org/rfc/rfc5646.txt
+[Refable protocol]: process.md#processrefmayberefable
 [Web Crypto API]: webcrypto.md
 [`--experimental-eventsource`]: cli.md#--experimental-eventsource
+[`--experimental-web-worker`]: cli.md#--experimental-web-worker
 [`--localstorage-file`]: cli.md#--localstorage-filefile
 [`--no-experimental-global-navigator`]: cli.md#--no-experimental-global-navigator
-[`--no-experimental-websocket`]: cli.md#--no-experimental-websocket
 [`--no-experimental-webstorage`]: cli.md#--no-experimental-webstorage
 [`ByteLengthQueuingStrategy`]: webstreams.md#class-bytelengthqueuingstrategy
 [`CompressionStream`]: webstreams.md#class-compressionstream
 [`CountQueuingStrategy`]: webstreams.md#class-countqueuingstrategy
 [`DecompressionStream`]: webstreams.md#class-decompressionstream
 [`EventTarget` and `Event` API]: events.md#eventtarget-and-event-api
+[`FormData`]: #class-formdata
+[`Headers`]: #class-headers
 [`LockManager`]: worker_threads.md#class-lockmanager
 [`MessageChannel`]: worker_threads.md#class-messagechannel
 [`MessagePort`]: worker_threads.md#class-messageport
@@ -1373,6 +1495,8 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`ReadableStreamDefaultController`]: webstreams.md#class-readablestreamdefaultcontroller
 [`ReadableStreamDefaultReader`]: webstreams.md#class-readablestreamdefaultreader
 [`ReadableStream`]: webstreams.md#class-readablestream
+[`Request`]: #class-request
+[`Response`]: #class-response
 [`TextDecoderStream`]: webstreams.md#class-textdecoderstream
 [`TextDecoder`]: util.md#class-utiltextdecoder
 [`TextEncoderStream`]: webstreams.md#class-textencoderstream
@@ -1395,10 +1519,12 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`clearTimeout`]: timers.md#cleartimeouttimeout
 [`console`]: console.md
 [`exports`]: modules.md#exports
-[`fetch()`]: https://developer.mozilla.org/en-US/docs/Web/API/fetch
+[`fetch()`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch
+[`fs.openAsBlob()`]: fs.md#fsopenasblobpath-options
 [`globalThis`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
 [`localStorage`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
 [`module`]: modules.md#module
+[`node:worker_threads`]: worker_threads.md
 [`perf_hooks.performance`]: perf_hooks.md#perf_hooksperformance
 [`process.nextTick()`]: process.md#processnexttickcallback-args
 [`process` object]: process.md#process
@@ -1407,7 +1533,7 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`setImmediate`]: timers.md#setimmediatecallback-args
 [`setInterval`]: timers.md#setintervalcallback-delay-args
 [`setTimeout`]: timers.md#settimeoutcallback-delay-args
-[`structuredClone`]: https://developer.mozilla.org/en-US/docs/Web/API/structuredClone
+[`structuredClone`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/structuredClone
 [`window.navigator`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/navigator
 [`worker_threads.locks`]: worker_threads.md#worker_threadslocks
 [browser `LockManager`]: https://developer.mozilla.org/en-US/docs/Web/API/LockManager

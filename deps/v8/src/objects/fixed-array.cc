@@ -21,10 +21,9 @@ bool FixedArrayBase::IsCowArray() const {
 template <template <typename> typename HandleType>
   requires(
       std::is_convertible_v<HandleType<FixedArray>, DirectHandle<FixedArray>>)
-HandleType<FixedArray> FixedArray::SetAndGrow(Isolate* isolate,
-                                              HandleType<FixedArray> array,
-                                              int index,
-                                              DirectHandle<Object> value) {
+HandleType<FixedArray> FixedArray::Grow(Isolate* isolate,
+                                        HandleType<FixedArray> array,
+                                        int index) {
   int len = array->length();
   if (index >= len) {
     int new_capacity = FixedArray::NewCapacityForIndex(index, len);
@@ -33,7 +32,17 @@ HandleType<FixedArray> FixedArray::SetAndGrow(Isolate* isolate,
     // use `undefined` as a filler. Make this more explicit.
     array->FillWithHoles(len, new_capacity);
   }
+  return array;
+}
 
+template <template <typename> typename HandleType>
+  requires(
+      std::is_convertible_v<HandleType<FixedArray>, DirectHandle<FixedArray>>)
+HandleType<FixedArray> FixedArray::SetAndGrow(Isolate* isolate,
+                                              HandleType<FixedArray> array,
+                                              int index,
+                                              DirectHandle<Object> value) {
+  array = Grow(isolate, array, index);
   array->set(index, *value);
   return array;
 }
@@ -45,6 +54,25 @@ template IndirectHandle<FixedArray> FixedArray::SetAndGrow(
     Isolate* isolate, IndirectHandle<FixedArray> array, int index,
     DirectHandle<Object> value);
 
+template <template <typename> typename HandleType>
+  requires(
+      std::is_convertible_v<HandleType<FixedArray>, DirectHandle<FixedArray>>)
+HandleType<FixedArray> FixedArray::SetAndGrow(Isolate* isolate,
+                                              HandleType<FixedArray> array,
+                                              int index,
+                                              Tagged<Smi> value) {
+  array = Grow(isolate, array, index);
+  array->set(index, value);
+  return array;
+}
+
+template DirectHandle<FixedArray> FixedArray::SetAndGrow(
+    Isolate* isolate, DirectHandle<FixedArray> array, int index,
+    Tagged<Smi> value);
+template IndirectHandle<FixedArray> FixedArray::SetAndGrow(
+    Isolate* isolate, IndirectHandle<FixedArray> array, int index,
+    Tagged<Smi> value);
+
 void FixedArray::RightTrim(Isolate* isolate, int new_capacity) {
   DCHECK_NE(map(), ReadOnlyRoots{isolate}.fixed_cow_array_map());
   Super::RightTrim(isolate, new_capacity);
@@ -54,7 +82,7 @@ template <template <typename> typename HandleType>
   requires(
       std::is_convertible_v<HandleType<FixedArray>, DirectHandle<FixedArray>>)
 HandleType<FixedArray> FixedArray::RightTrimOrEmpty(
-    Isolate* isolate, HandleType<FixedArray> array, int new_length) {
+    Isolate* isolate, HandleType<FixedArray> array, uint32_t new_length) {
   if (new_length == 0) {
     return isolate->factory()->empty_fixed_array();
   }
@@ -64,10 +92,11 @@ HandleType<FixedArray> FixedArray::RightTrimOrEmpty(
 
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
     DirectHandle<FixedArray> FixedArray::RightTrimOrEmpty(
-        Isolate* isolate, DirectHandle<FixedArray> array, int new_length);
+        Isolate* isolate, DirectHandle<FixedArray> array, uint32_t new_length);
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
     IndirectHandle<FixedArray> FixedArray::RightTrimOrEmpty(
-        Isolate* isolate, IndirectHandle<FixedArray> array, int new_length);
+        Isolate* isolate, IndirectHandle<FixedArray> array,
+        uint32_t new_length);
 
 // static
 DirectHandle<ArrayList> ArrayList::Add(Isolate* isolate,

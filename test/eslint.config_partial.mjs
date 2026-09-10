@@ -117,6 +117,30 @@ export default [
           selector: 'CallExpression:matches([callee.type="Identifier"][callee.name="assert"], [callee.type="MemberExpression"][callee.object.type="Identifier"][callee.object.name="assert"][callee.property.type="Identifier"][callee.property.name="ok"])[arguments.0.type="UnaryExpression"][arguments.0.operator="!"][arguments.0.argument.type="CallExpression"][arguments.0.argument.callee.type="MemberExpression"][arguments.0.argument.callee.object.regex][arguments.0.argument.callee.property.name="test"]',
           message: 'Use assert.doesNotMatch instead',
         },
+        {
+          selector: 'VariableDeclarator[init.type="Identifier"][init.name=/^(assert|fixtures)$/]',
+          message: 'Do not destructure or rename `assert` nor `fixtures`',
+        },
+        ...((fixturesSpecifier) => [
+          {
+            selector: `ImportDeclaration[source.value=${fixturesSpecifier.toString().replace('(\\.js)?', '\\.mjs')}]:not(${[
+              'length=1',
+              '0.type="ImportNamespaceSpecifier"',
+            ].map((selector) => `[specifiers.${selector}]`).join('')})`,
+            message: 'Do not use named imports, use `import * as fixtures from` instead',
+          },
+          {
+            selector: `ImportDeclaration[source.value=${fixturesSpecifier}]:not(${[
+              'length=1',
+              '0.type="ImportDefaultSpecifier"',
+            ].map((selector) => `[specifiers.${selector}]`).join('')})`,
+            message: 'Do not use named imports, use `import fixtures from` instead',
+          },
+          {
+            selector: `:not(VariableDeclarator[id.type="Identifier"])>CallExpression[callee.name="require"][arguments.0.value=${fixturesSpecifier}]`,
+            message: 'Do not destructure, use `const fixtures =` instead',
+          },
+        ])(/^(\.\.\u002f)+common\u002ffixtures(\.js)?$/),
       ],
 
       // Stylistic rules.
@@ -142,6 +166,7 @@ export default [
       'node-core/require-common-first': 'error',
       'node-core/no-duplicate-requires': 'off',
       'node-core/must-call-assert': 'error',
+      'node-core/prefer-abort-signal-abort': 'error',
     },
   },
   {

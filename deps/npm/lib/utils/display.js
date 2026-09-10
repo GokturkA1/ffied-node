@@ -1,6 +1,7 @@
 const { log, output, input, META } = require('proc-log')
 const { explain } = require('./explain-eresolve.js')
 const { formatWithOptions } = require('./format')
+const { redactLog } = require('@npmcli/redact')
 
 // This is the general approach to color:
 // Eventually this will be exposed somewhere we can refer to these by name.
@@ -98,14 +99,16 @@ const getArrayOrObject = (items) => {
   return Object.assign({}, ...items.filter(o => isPlainObject(o)))
 }
 
+const redactValue = (obj) => JSON.parse(redactLog(JSON.stringify(obj)))
+
 const getJsonBuffer = ({ [JSON_ERROR_KEY]: metaError }, buffer) => {
   const items = []
   // meta also contains the meta object passed to flush
   const errors = metaError ? [metaError] : []
   // index 1 is the meta, 2 is the logged argument
-  for (const [, { [JSON_ERROR_KEY]: error }, obj] of buffer) {
+  for (const [, { [JSON_ERROR_KEY]: error, redact = true }, obj] of buffer) {
     if (obj) {
-      items.push(obj)
+      items.push(redact ? redactValue(obj) : obj)
     }
     if (error) {
       errors.push(error)
@@ -177,6 +180,8 @@ class Display {
   #stdout
   #stderr
 
+  #seenNotices = new Set()
+
   constructor ({ stdout, stderr }) {
     this.#stdout = setBlocking(stdout)
     this.#stderr = setBlocking(stderr)
@@ -195,6 +200,7 @@ class Display {
     this.#outputState.buffer.length = 0
     process.off('input', this.#inputHandler)
     this.#progress.off()
+    this.#seenNotices.clear()
   }
 
   get chalk () {
@@ -288,7 +294,9 @@ class Display {
         if (this.#json) {
           const json = getJsonBuffer(meta, this.#outputState.buffer)
           if (json) {
-            this.#writeOutput(output.KEYS.standard, meta, JSON.stringify(json, null, 2))
+            // Per-item redaction already applied in getJsonBuffer, skip string-level redaction
+            const jsonMeta = { ...meta, redact: false }
+            this.#writeOutput(output.KEYS.standard, jsonMeta, JSON.stringify(json, null, 2))
           }
         } else {
           this.#outputState.buffer.forEach((item) => this.#writeOutput(...item))
@@ -330,20 +338,37 @@ class Display {
         this.#progress.off()
         break
 
-      case input.KEYS.end:
+      case input.KEYS.end: {
         log.resume()
+        // For silent prompts (like password), add newline to preserve output
+        if (meta?.silent) {
+          output.standard()
+        }
         output.flush()
         this.#progress.resume()
         break
+      }
 
       case input.KEYS.read: {
-        // The convention when calling input.read is to pass in a single fn that returns the promise to await. resolve and reject are provided by proc-log.
+        // The convention when calling input.read is to pass in a single fn that returns the promise to await. Resolve and reject are provided by proc-log.
         const [res, rej, p] = args
-        return input.start(() => p()
-          .then(res)
-          .catch(rej)
-          // Any call to procLog.input.read will render a prompt to the user, so we always add a single newline of output to stdout to move the cursor to the next line.
-          .finally(() => output.standard('')))
+
+        // Use sequential input management to avoid race condition which causes issues with spinner and adding newlines.
+        input.start()
+
+        return p()
+          .then((result) => {
+            // If user hits enter, process end event and return input.
+            input.end({ [META]: true, silent: meta?.silent })
+            res(result)
+            return result
+          })
+          .catch((error) => {
+            // If user hits ctrl+c, add newline to preserve output.
+            output.standard()
+            input.end()
+            rej(error)
+          })
       }
     }
   })
@@ -404,6 +429,14 @@ class Display {
       // notice logs typically come from `npm-notice` headers in responses.  Some of them have 2fa login links so we skip redaction.
       if (level === 'notice') {
         writeOpts.redact = false
+        // Deduplicate notices within a single command execution, unless in verbose mode
+        if (this.#levelIndex < LEVEL_OPTIONS.verbose.index) {
+          const noticeKey = JSON.stringify([title, ...args])
+          if (this.#seenNotices.has(noticeKey)) {
+            return
+          }
+          this.#seenNotices.add(noticeKey)
+        }
       }
       this.#write(this.#stderr, writeOpts, ...args)
     }

@@ -31,6 +31,7 @@
 /tags
 /tags.*
 /doc/api.xml
+/docs/
 /node
 /node_g
 /gon-config.json
@@ -120,6 +121,7 @@ tools/*/*.i.tmp
 /*.xml
 /v8*-tap.json
 /node_trace.*.log
+/node_trace.*.pftrace
 # coverage related
 /gcovr
 /build
@@ -144,6 +146,9 @@ tools/*/*.i.tmp
 /deps/**/.github/
 # Ignore dependencies fetched by tools/v8/fetch_deps.py
 /deps/.cipd
+!deps/LIEF/**
+deps/LIEF/*.vcxproj*
+deps/LIEF/*.sln
 
 # === Rules for Windows vcbuild.bat ===
 /temp-vcbuild
@@ -156,6 +161,9 @@ CTestTestfile.cmake
 cmake_install.cmake
 install_manifest.txt
 *.cbp
+
+# === Rules for AI assistants ===
+CLAUDE.md
 
 # === Global Rules ===
 # Keep last to avoid being excluded
